@@ -1,0 +1,30 @@
+{
+  "name": "forge-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "scripts": {
+    "prepare": "husky install",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md}\"",
+    "format:write": "prettier --write \"**/*.{ts,tsx,js,json,md}\""
+  },
+  "devDependencies": {
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.2",
+    "prettier": "^3.2.5",
+    "turbo": "^2.0.4",
+    "typescript": "^5.4.5"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,json,css,md}": [
+      "prettier --write"
+    ],
+    "*.py": [
+      "uv run ruff format",
+      "uv run ruff check --fix"
+    ]
+  }
+}

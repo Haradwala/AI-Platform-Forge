@@ -1,0 +1,53 @@
+# Dependency directories
+node_modules/
+jspm_packages/
+web_packages/
+
+# Build outputs
+dist/
+build/
+out/
+.turbo/
+
+# Python environment
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+
+# Local databases and runtime state
+*.db
+*.db-journal
+*.sqlite
+data/
+chroma_data/
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environmental variables files
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+.env.production
+
+# Changesets temp files
+.changeset/*.hotspot
