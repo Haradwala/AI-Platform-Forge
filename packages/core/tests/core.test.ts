@@ -63,11 +63,11 @@ describe('Forge Core Services', () => {
       const bus = new EventBus();
       const pids: number[] = [];
 
-      bus.subscribe('process:started', (event) => {
+      bus.subscribe('process.started', (event) => {
         pids.push(event.payload.pid);
       });
 
-      bus.publish('process:started', {
+      bus.publish('process.started', {
         pid: 4501,
         command: 'node',
         env: { PATH: '/usr/bin' }
@@ -80,15 +80,15 @@ describe('Forge Core Services', () => {
       const bus = new EventBus();
       let count = 0;
 
-      const subId = bus.subscribe('process:stdout', () => {
+      const subId = bus.subscribe('process.stdout', () => {
         count++;
       });
 
-      bus.publish('process:stdout', { pid: 1, chunk: 'hello' });
+      bus.publish('process.stdout', { pid: 1, chunk: 'hello' });
       expect(count).toBe(1);
 
       bus.unsubscribe(subId);
-      bus.publish('process:stdout', { pid: 1, chunk: 'world' });
+      bus.publish('process.stdout', { pid: 1, chunk: 'world' });
       expect(count).toBe(1);
     });
   });

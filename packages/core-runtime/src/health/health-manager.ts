@@ -31,7 +31,7 @@ export class HealthManager implements IHealthManager {
       }
 
       if (this.eventBus) {
-        this.eventBus.publish('health:changed', {
+        this.eventBus.publish('health.changed', {
           serviceName,
           status,
           message,

@@ -60,3 +60,25 @@ export class Workspace implements IWorkspace {
     return true;
   }
 }
+
+export interface IWorkspaceFile {
+  readonly name: string;
+  readonly relativePath: string;
+  readonly absolutePath: string;
+  readonly extension: string;
+  readonly size: number;
+  readonly lastModified: Date;
+  readonly isDirectory: boolean;
+}
+
+export class WorkspaceFile implements IWorkspaceFile {
+  constructor(
+    public readonly name: string,
+    public readonly relativePath: string,
+    public readonly absolutePath: string,
+    public readonly extension: string,
+    public readonly size: number,
+    public readonly lastModified: Date,
+    public readonly isDirectory: boolean
+  ) {}
+}

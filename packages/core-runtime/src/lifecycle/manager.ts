@@ -67,16 +67,16 @@ export class LifecycleManager implements ILifecycleManager {
 
     switch (state) {
       case LifecycleState.INITIALIZING:
-        this.eventBus.publish('forge:initialized', { timestamp, durationMs });
+        this.eventBus.publish('forge.initialized', { timestamp, durationMs });
         break;
       case LifecycleState.RUNNING:
-        this.eventBus.publish('forge:ready', { timestamp, durationMs });
+        this.eventBus.publish('forge.ready', { timestamp, durationMs });
         break;
       case LifecycleState.STOPPING:
-        this.eventBus.publish('forge:stopping', { timestamp });
+        this.eventBus.publish('forge.stopping', { timestamp });
         break;
       case LifecycleState.STOPPED:
-        this.eventBus.publish('forge:stopped', { timestamp, durationMs });
+        this.eventBus.publish('forge.stopped', { timestamp, durationMs });
         break;
     }
   }
