@@ -1,0 +1,34 @@
+import { IRuntimeService } from './runtime-service';
+import { IRepositoryProvider, RepositoryQuery, RepositoryResult, RepositoryEventListener, IDisposable } from './repository-types';
+import { IWorkspaceService, IDesktopEventBus } from '../container/service-interfaces';
+export declare class RepositoryIntelligenceEngine implements IRuntimeService, IRepositoryProvider {
+    private readonly workspaceService;
+    readonly id = "RepositoryIntelligenceEngine";
+    readonly version = "2.0.0";
+    readonly dependencies: never[];
+    health: 'healthy' | 'warning' | 'degraded' | 'failed';
+    status: 'stopped' | 'starting' | 'running' | 'suspended' | 'error';
+    private readonly discovery;
+    private readonly parser;
+    private readonly symbols;
+    private readonly graph;
+    private readonly diagnosticsService;
+    private readonly events;
+    private readonly indexer;
+    private readonly search;
+    private manifest;
+    private readonly listeners;
+    private readonly startTime;
+    constructor(workspaceService: IWorkspaceService, eventBus?: IDesktopEventBus);
+    uptime(): number;
+    metrics(): Record<string, any>;
+    onStart(): void;
+    onRunning(): void;
+    onSuspend(): void;
+    onShutdown(): void;
+    scanWorkspace(): Promise<void>;
+    query(request: RepositoryQuery): Promise<RepositoryResult>;
+    subscribe(listener: RepositoryEventListener): IDisposable;
+    onFileChanged(filePath: string): Promise<void>;
+}
+export type { IRepositoryProvider };

@@ -1,0 +1,273 @@
+/**
+ * execution-orchestrator.ts
+ *
+ * Phase 8 — Execution Orchestrator.
+ *
+ * Central coordinator for all AI foundation subsystems:
+ *  1. MemoryEngine (retrieve)
+ *  2. ContextEngine (gather snapshot)
+ *  3. PlanningGraph (build DAG & topological order)
+ *  4. PromptAssemblyEngine (assemble prompt)
+ *  5. RuntimeManager (stream response)
+ *  6. ToolExecutionEngine (execute tools)
+ *  7. VerificationEngine (verify results)
+ *  8. ReflectionEngine (reflect on errors)
+ *  9. MemoryEngine (store & consolidate)
+ *
+ * No subsystem should bypass ExecutionOrchestrator.
+ */
+
+import type {
+  IRuntimeManager,
+  IToolExecutionEngine,
+  IContextEngine,
+  IMemoryEngine,
+  ToolInvocation,
+  ToolResult,
+} from '../../container/service-interfaces';
+import { PlanningGraph } from '../planner/planning-graph';
+import { PromptAssemblyEngine, type AssembledPrompt } from '../context/prompt-assembly-engine';
+import type { VerificationEngine } from '../verification/verification-engine';
+import type { VerificationPolicy } from '../verification/verification-types';
+import type { ReflectionEngine } from '../reflection/reflection-engine';
+
+export interface OrchestrationRequest {
+  /** User goal or task objective. */
+  goal: string;
+  /** Optional pre-planned tool invocations. */
+  toolInvocations?: ToolInvocation[];
+  /** Verification policy to enforce. */
+  verificationPolicy?: VerificationPolicy;
+  /** Workspace root path. */
+  workspaceRoot?: string | null;
+  /** AbortSignal for cancellation. */
+  signal?: AbortSignal;
+  /** Task context override options. */
+  contextOptions?: any;
+}
+
+export interface OrchestrationResult {
+  success: boolean;
+  assembledPrompt: AssembledPrompt;
+  response: string;
+  toolResults: ToolResult[];
+  verificationPassed: boolean;
+  verificationIssues?: string[];
+  reflection?: string;
+  error?: string;
+  durationMs: number;
+}
+
+export interface IExecutionOrchestrator {
+  execute(request: OrchestrationRequest): Promise<OrchestrationResult>;
+}
+
+export class ExecutionOrchestrator implements IExecutionOrchestrator {
+  private readonly planningGraph: PlanningGraph;
+  private readonly promptEngine: PromptAssemblyEngine;
+
+  constructor(
+    private readonly runtimeManager: IRuntimeManager,
+    private readonly toolEngine?: IToolExecutionEngine,
+    private readonly contextEngine?: IContextEngine,
+    private readonly memoryEngine?: IMemoryEngine,
+    private readonly verificationEngine?: VerificationEngine,
+    private readonly reflectionEngine?: ReflectionEngine,
+    promptEngine?: PromptAssemblyEngine,
+    planningGraph?: PlanningGraph
+  ) {
+    this.promptEngine = promptEngine || new PromptAssemblyEngine();
+    this.planningGraph = planningGraph || new PlanningGraph();
+  }
+
+  async execute(request: OrchestrationRequest): Promise<OrchestrationResult> {
+    const start = Date.now();
+
+    // 1. AbortSignal cancellation check
+    if (request.signal?.aborted) {
+      throw new Error('Orchestration cancelled by AbortSignal.');
+    }
+
+    // 2. Memory Engine Retrieval
+    let memories: any[] = [];
+    if (this.memoryEngine) {
+      try {
+        memories = await this.memoryEngine.retrieve({
+          query: request.goal,
+          limit: 5,
+          signal: request.signal,
+        });
+      } catch (err) {
+        // Non-fatal retrieval fallback
+      }
+    }
+
+    // 3. Context Engine Snapshot Gathering
+    let contextSnapshot: any = undefined;
+    if (this.contextEngine && this.contextEngine.gatherSnapshot) {
+      try {
+        contextSnapshot = await this.contextEngine.gatherSnapshot({
+          userGoal: request.goal,
+          signal: request.signal,
+          ...(request.contextOptions || {}),
+        });
+      } catch (err) {
+        // Non-fatal snapshot fallback
+      }
+    }
+
+    // 4. PlanningGraph DAG construction
+    this.planningGraph.clear();
+    this.planningGraph.addNode('step_1', {
+      goal: request.goal,
+      invocations: request.toolInvocations || [],
+    });
+
+    // 5. PromptAssemblyEngine Prompt Assembly
+    const assembledPrompt = this.promptEngine.assemble({
+      goal: request.goal,
+      contextSnapshot,
+      memories,
+    });
+
+    if (request.signal?.aborted) {
+      throw new Error('Orchestration cancelled by AbortSignal.');
+    }
+
+    // 6. RuntimeManager Execution
+    const activeRuntime =
+      typeof (this.runtimeManager as any).resolveFallbackRuntime === 'function'
+        ? (this.runtimeManager as any).resolveFallbackRuntime()
+        : this.runtimeManager.active();
+
+    let responseText = '';
+
+    try {
+      const stream = await activeRuntime.generateStream(
+        `${assembledPrompt.systemPrompt}\n\n${assembledPrompt.userPrompt}`,
+        request.contextOptions || {},
+        request.signal
+      );
+
+      responseText = await new Promise<string>((resolve, reject) => {
+        let text = '';
+        const onAbort = () => reject(new Error('AI stream cancelled by AbortSignal.'));
+
+        if (request.signal?.aborted) {
+          onAbort();
+          return;
+        }
+
+        request.signal?.addEventListener('abort', onAbort);
+
+        stream.onToken((t: string) => { text += t; });
+        stream.onComplete((full: string) => {
+          request.signal?.removeEventListener('abort', onAbort);
+          resolve(full || text);
+        });
+        stream.onError((e: unknown) => {
+          request.signal?.removeEventListener('abort', onAbort);
+          reject(e);
+        });
+      });
+    } catch (rErr) {
+      responseText = `Runtime execution warning: ${rErr instanceof Error ? rErr.message : String(rErr)}`;
+    }
+
+    // 7. ToolExecutionEngine Invocations
+    const toolResults: ToolResult[] = [];
+    if (request.toolInvocations && request.toolInvocations.length > 0 && this.toolEngine) {
+      for (const inv of request.toolInvocations) {
+        if (request.signal?.aborted) break;
+        const res = await this.toolEngine.executeTool(inv, { signal: request.signal });
+        toolResults.push(res);
+      }
+    }
+
+    // 8. VerificationEngine Verification
+    let verificationPassed = true;
+    let verificationIssues: string[] = [];
+    let mockReport: any = undefined;
+
+    const failedTools = toolResults.filter((t) => !t.success);
+    if (failedTools.length > 0) {
+      verificationPassed = false;
+      verificationIssues.push(...failedTools.map((t) => t.error?.message || 'Tool failed'));
+    }
+
+    if (verificationPassed && this.verificationEngine && request.verificationPolicy) {
+      try {
+        mockReport = await this.verificationEngine.verify(
+          request.verificationPolicy,
+          request.workspaceRoot ?? null
+        );
+        verificationPassed = mockReport.success;
+        if (!verificationPassed) {
+          verificationIssues.push('Verification policy failed');
+        }
+      } catch (vErr) {
+        verificationPassed = false;
+        verificationIssues.push(vErr instanceof Error ? vErr.message : 'Verification error');
+      }
+    }
+
+    // 9. ReflectionEngine Reflection on failure
+    let reflectionText: string | undefined = undefined;
+    if (!verificationPassed && this.reflectionEngine) {
+      try {
+        const planDummy: any = { id: 'plan_1', goal: request.goal, tasks: [] };
+        const verReportDummy: any = mockReport || {
+          success: false,
+          state: 'failed',
+          policy: request.verificationPolicy || 'standard',
+          durationMs: 0,
+          compilation: { success: false, errors: [] },
+          lint: { success: false, errors: [] },
+          test: { success: false, passCount: 0, failCount: 1, errors: [] },
+          format: { success: true, filesUnformatted: [] },
+          security: { success: true, issues: [] },
+          architecture: { success: true, issues: [] },
+          performance: { success: true, issues: [] },
+          suggestions: verificationIssues,
+        };
+
+        const refObj = await this.reflectionEngine.reflect(
+          planDummy,
+          verReportDummy,
+          null,
+          request.workspaceRoot ?? null
+        );
+        reflectionText = refObj.recommendations ? refObj.recommendations.join('; ') : 'Verification issues identified';
+      } catch (rfErr) {
+        reflectionText = `Reflection on failure: ${verificationIssues.join('; ')}`;
+      }
+    }
+
+    // 10. Memory Engine Storage & Consolidation
+    if (this.memoryEngine) {
+      try {
+        this.memoryEngine.store({
+          type: 'conversation',
+          content: `Goal "${request.goal}" evaluated: success=${verificationPassed}`,
+          importance: verificationPassed ? 7 : 4,
+        });
+        await this.memoryEngine.consolidate();
+      } catch (mErr) {
+        // Non-fatal memory update fallback
+      }
+    }
+
+    this.planningGraph.markStatus('step_1', verificationPassed ? 'completed' : 'failed');
+
+    return {
+      success: verificationPassed,
+      assembledPrompt,
+      response: responseText,
+      toolResults,
+      verificationPassed,
+      verificationIssues,
+      reflection: reflectionText,
+      durationMs: Date.now() - start,
+    };
+  }
+}

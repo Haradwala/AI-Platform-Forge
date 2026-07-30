@@ -1,0 +1,1 @@
+{"version":3,"file":"test-provider.js","sourceRoot":"","sources":["../../../../../electron/main/ai/intelligence/providers/test-provider.ts"],"names":[],"mappings":";AAAA;;GAEG;;;AASH,MAAa,YAAY;IACvB,YAAY,CAAC,aAAqB;QAChC,OAAO;YACL,cAAc,EAAE,EAAE;YAClB,SAAS,EAAE,GAAG;YACd,SAAS,EAAE,CAAC;YACZ,eAAe,EAAE,IAAI;SACtB,CAAC;IACJ,CAAC;CACF;AATD,oCASC"}

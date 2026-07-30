@@ -1,0 +1,172 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Forge Design Tokens (Dark Theme Default) ────────────────────────────── */
+:root {
+  /* Backgrounds */
+  --forge-bg:           #0f0f13;
+  --forge-bg-elevated:  #17171e;
+  --forge-bg-active:    #1e1e28;
+  --forge-bg-hover:     #1a1a24;
+  --forge-bg-selection: #2a2a3a;
+
+  /* Borders */
+  --forge-border:       #2a2a38;
+  --forge-border-focus: #6366f1;
+
+  /* Text */
+  --forge-text:         #e2e2e8;
+  --forge-text-muted:   #888898;
+  --forge-text-subtle:  #555568;
+
+  /* Accent — Indigo/Violet */
+  --forge-accent:       #6366f1;
+  --forge-accent-hover: #7c7ff5;
+  --forge-accent-dim:   rgba(99, 102, 241, 0.15);
+
+  /* Semantic */
+  --forge-success:      #22c55e;
+  --forge-warning:      #f59e0b;
+  --forge-error:        #ef4444;
+  --forge-info:         #3b82f6;
+
+  /* Editor */
+  --forge-editor-bg:    #0d0d11;
+  --forge-gutter-bg:    #111116;
+  --forge-line-highlight: #1a1a24;
+
+  /* Activity Bar */
+  --forge-activity-width: 48px;
+
+  /* Status Bar */
+  --forge-status-height: 22px;
+
+  /* Agent Panel (Phase 1 — actual width driven by layout store) */
+  --forge-agent-panel-width: 380px;
+
+  /* Scrollbar */
+  --forge-scrollbar:      #2a2a38;
+  --forge-scrollbar-hover:#3a3a50;
+
+  /* Font stacks */
+  --forge-font-ui:   'Inter', system-ui, -apple-system, sans-serif;
+  --forge-font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Transitions */
+  --forge-transition: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ─── Light Theme Overrides ────────────────────────────────────────────────── */
+.theme-light {
+  --forge-bg:           #f8f8fc;
+  --forge-bg-elevated:  #ffffff;
+  --forge-bg-active:    #eeeef8;
+  --forge-bg-hover:     #f0f0f8;
+  --forge-bg-selection: #ddddf0;
+  --forge-border:       #d0d0e0;
+  --forge-text:         #18181e;
+  --forge-text-muted:   #666678;
+  --forge-text-subtle:  #aaaabc;
+  --forge-editor-bg:    #ffffff;
+  --forge-gutter-bg:    #f5f5fa;
+  --forge-line-highlight: #f0f0f8;
+  --forge-scrollbar:      #d0d0e0;
+  --forge-scrollbar-hover:#b8b8d0;
+}
+
+/* ─── Base Reset ───────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  background-color: var(--forge-bg);
+  color: var(--forge-text);
+  font-family: var(--forge-font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  user-select: none;
+}
+
+/* Allow text selection in editor and inputs */
+input,
+textarea,
+[contenteditable],
+.allow-select {
+  user-select: text;
+}
+
+/* ─── Scrollbar Styling ────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--forge-scrollbar);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--forge-scrollbar-hover);
+}
+
+/* ─── Focus Styles ─────────────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--forge-border-focus);
+  outline-offset: 2px;
+}
+
+/* ─── Drag Region (Electron titlebar) ──────────────────────────────────────── */
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* ─── Phase 5: Animations ──────────────────────────────────────────────────── */
+
+/** Agent Panel slides in from the right when it becomes visible */
+@keyframes forge-slide-in-right {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/** Timeline stage rows and cards fade in as they are appended */
+@keyframes forge-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/** InboxStrip run pills pop in when created */
+@keyframes forge-pill-pop {
+  0%   { opacity: 0; transform: scale(0.92); }
+  60%  { transform: scale(1.03); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.animate-slide-in-right { animation: forge-slide-in-right 180ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-fade-in        { animation: forge-fade-in 150ms ease-out both; }
+.animate-pill-pop       { animation: forge-pill-pop 180ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+

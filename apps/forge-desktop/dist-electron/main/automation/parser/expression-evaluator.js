@@ -1,0 +1,63 @@
+"use strict";
+/**
+ * expression-evaluator.ts — Conditional Expression & Variable Interpolation Engine
+ *
+ * Evaluates conditional expressions (`success()`, `failure()`, `always()`, `cancelled()`)
+ * and interpolates `${{ inputs.foo }}`, `${{ variables.bar }}`, and `${{ env.BAZ }}`.
+ */
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ExpressionEvaluator = void 0;
+class ExpressionEvaluator {
+    /**
+     * Evaluates a condition string against the provided context.
+     */
+    evaluateCondition(condition, context = {}) {
+        if (!condition || condition.trim() === '') {
+            // Default: execute if no previous failure
+            return !context.hasFailure && !context.isCancelled;
+        }
+        const clean = condition.replace(/\$\{\{\s*/g, '').replace(/\s*\}\}/g, '').trim();
+        if (clean === 'success()') {
+            return !context.hasFailure && !context.isCancelled;
+        }
+        if (clean === 'failure()') {
+            return !!context.hasFailure && !context.isCancelled;
+        }
+        if (clean === 'always()') {
+            return true;
+        }
+        if (clean === 'cancelled()') {
+            return !!context.isCancelled;
+        }
+        // Evaluate simple comparison expressions like "outcome.step1.status == 'COMPLETED'"
+        if (clean.includes('==')) {
+            const [left, right] = clean.split('==').map((s) => s.trim().replace(/^['"]|['"]$/g, ''));
+            const leftVal = this.interpolate(left, context);
+            return leftVal === right;
+        }
+        return !context.hasFailure && !context.isCancelled;
+    }
+    /**
+     * Interpolates template expressions in strings (e.g. "Hello ${{ inputs.name }}").
+     */
+    interpolate(template, context) {
+        if (!template || typeof template !== 'string')
+            return template;
+        return template.replace(/\$\{\{\s*([\w.]+)\s*\}\}/g, (_, path) => {
+            const parts = path.split('.');
+            let val = context;
+            for (const part of parts) {
+                if (val && typeof val === 'object') {
+                    val = val[part];
+                }
+                else {
+                    val = undefined;
+                    break;
+                }
+            }
+            return val !== undefined ? String(val) : '';
+        });
+    }
+}
+exports.ExpressionEvaluator = ExpressionEvaluator;
+//# sourceMappingURL=expression-evaluator.js.map

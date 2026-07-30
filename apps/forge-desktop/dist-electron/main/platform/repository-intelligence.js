@@ -1,0 +1,205 @@
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.RepositoryIntelligenceEngine = void 0;
+const workspace_discovery_1 = require("./workspace-discovery");
+const regex_parser_1 = require("./regex-parser");
+const symbol_index_1 = require("./symbol-index");
+const dependency_graph_1 = require("./dependency-graph");
+const incremental_indexer_1 = require("./incremental-indexer");
+const repository_search_1 = require("./repository-search");
+const repository_diagnostics_1 = require("./repository-diagnostics");
+const repository_events_1 = require("./repository-events");
+const fs = __importStar(require("fs"));
+const path = __importStar(require("path"));
+class RepositoryIntelligenceEngine {
+    workspaceService;
+    id = 'RepositoryIntelligenceEngine';
+    version = '2.0.0';
+    dependencies = [];
+    health = 'healthy';
+    status = 'stopped';
+    discovery = new workspace_discovery_1.WorkspaceDiscoveryService();
+    parser = new regex_parser_1.RegexParser();
+    symbols = new symbol_index_1.SymbolIndexService();
+    graph = new dependency_graph_1.DependencyGraphService();
+    diagnosticsService = new repository_diagnostics_1.RepositoryDiagnosticsService();
+    events;
+    indexer;
+    search;
+    manifest = null;
+    listeners = new Set();
+    startTime = Date.now();
+    constructor(workspaceService, eventBus) {
+        this.workspaceService = workspaceService;
+        this.events = new repository_events_1.RepositoryEventService(eventBus);
+        this.indexer = new incremental_indexer_1.IncrementalIndexerService(this.parser, this.symbols, this.graph, this.events);
+        this.search = new repository_search_1.RepositorySearchService(this.symbols, this.graph);
+    }
+    uptime() {
+        return Date.now() - this.startTime;
+    }
+    metrics() {
+        return {
+            filesIndexed: this.manifest?.filesCount || 0,
+            symbolsCount: this.symbols.getAll().length,
+        };
+    }
+    onStart() { }
+    onRunning() {
+        this.scanWorkspace().catch(() => {
+            this.health = 'degraded';
+        });
+    }
+    onSuspend() { }
+    onShutdown() {
+        this.symbols.clear();
+        this.graph.clear();
+        this.listeners.clear();
+    }
+    async scanWorkspace() {
+        const root = this.workspaceService.getRootPath();
+        if (!root)
+            return;
+        this.events.emitIndexingStarted();
+        this.manifest = await this.discovery.discover(root);
+        const parseDir = async (dir) => {
+            const files = await fs.promises.readdir(dir, { withFileTypes: true });
+            for (const file of files) {
+                const fullPath = path.join(dir, file.name);
+                if (file.name === 'node_modules' || file.name === '.git' || file.name === 'dist' || file.name === 'build' || file.name === '.forge') {
+                    continue;
+                }
+                if (file.isDirectory()) {
+                    await parseDir(fullPath);
+                }
+                else if (file.isFile() && this.parser.supports(fullPath)) {
+                    await this.indexer.indexFile(fullPath);
+                }
+            }
+        };
+        try {
+            await parseDir(root);
+            this.status = 'running';
+            this.health = 'healthy';
+            this.diagnosticsService.writeDiagnostics(root, this.manifest, this.symbols, this.graph);
+        }
+        catch (err) {
+            this.health = 'warning';
+        }
+        finally {
+            this.events.emitIndexingCompleted();
+        }
+    }
+    async query(request) {
+        try {
+            switch (request.type) {
+                case 'findSymbol': {
+                    const syms = this.search.findSymbol(request.query);
+                    return { success: true, data: syms };
+                }
+                case 'findReferences': {
+                    const refs = this.search.findReferences(request.symbolName);
+                    return { success: true, data: refs };
+                }
+                case 'findImplementations': {
+                    const impls = this.search.findImplementations(request.interfaceName);
+                    return { success: true, data: impls };
+                }
+                case 'findCallers': {
+                    const callers = this.search.findCallers(request.functionName);
+                    return { success: true, data: callers };
+                }
+                case 'findDependencyPath': {
+                    const path = this.graph.findDependencyPath(request.from, request.to);
+                    return { success: true, data: path };
+                }
+                case 'findCircularDependencies': {
+                    const cycles = this.graph.findCircularDependencies();
+                    return { success: true, data: cycles };
+                }
+                case 'findFile': {
+                    const files = this.search.findFile(request.query);
+                    return { success: true, data: files };
+                }
+                case 'workspaceStatistics': {
+                    return {
+                        success: true,
+                        data: {
+                            filesCount: this.manifest?.filesCount || 0,
+                            symbolsCount: this.symbols.getAll().length,
+                            circularDependenciesCount: this.graph.findCircularDependencies().length,
+                            languages: this.manifest?.languages || [],
+                            projects: this.manifest?.projects || [],
+                        },
+                    };
+                }
+                case 'findFilesByLanguage': {
+                    const matches = this.symbols.getAll()
+                        .filter((s) => s.language.toLowerCase() === request.language.toLowerCase())
+                        .map((s) => s.file);
+                    return { success: true, data: Array.from(new Set(matches)) };
+                }
+                default:
+                    return { success: false, data: null, error: `Unsupported query type: ${request.type}` };
+            }
+        }
+        catch (err) {
+            return { success: false, data: null, error: err.message };
+        }
+    }
+    subscribe(listener) {
+        this.listeners.add(listener);
+        return {
+            dispose: () => {
+                this.listeners.delete(listener);
+            },
+        };
+    }
+    async onFileChanged(filePath) {
+        if (this.parser.supports(filePath)) {
+            await this.indexer.indexFile(filePath);
+            const root = this.workspaceService.getRootPath();
+            if (root && this.manifest) {
+                this.diagnosticsService.writeDiagnostics(root, this.manifest, this.symbols, this.graph);
+            }
+            for (const listener of this.listeners) {
+                listener({ type: 'file-updated', payload: { filePath } });
+            }
+        }
+    }
+}
+exports.RepositoryIntelligenceEngine = RepositoryIntelligenceEngine;
+//# sourceMappingURL=repository-intelligence.js.map

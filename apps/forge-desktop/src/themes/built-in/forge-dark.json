@@ -1,0 +1,20 @@
+{
+  "id": "forge-dark",
+  "name": "Forge Dark",
+  "colors": {
+    "forge-bg": "#0f0f13",
+    "forge-bg-elevated": "#17171e",
+    "forge-bg-active": "#1e1e28",
+    "forge-bg-hover": "#1a1a24",
+    "forge-bg-selection": "#2a2a3a",
+    "forge-border": "#2a2a38",
+    "forge-border-focus": "#6366f1",
+    "forge-text": "#e2e2e8",
+    "forge-text-muted": "#888898",
+    "forge-accent": "#6366f1",
+    "forge-accent-hover": "#7c7ff5",
+    "forge-editor-bg": "#0d0d11",
+    "forge-gutter-bg": "#111116",
+    "forge-line-highlight": "#1a1a24"
+  }
+}

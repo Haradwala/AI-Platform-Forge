@@ -1,0 +1,1 @@
+{"version":3,"file":"git-provider.js","sourceRoot":"","sources":["../../../../../electron/main/ai/intelligence/providers/git-provider.ts"],"names":[],"mappings":";AAAA;;GAEG;;;AAUH,MAAa,WAAW;IACtB,cAAc,CAAC,aAAqB;QAClC,OAAO;YACL,MAAM,EAAE,MAAM;YACd,OAAO,EAAE,IAAI;YACb,gBAAgB,EAAE,CAAC;YACnB,cAAc,EAAE,UAAU;YAC1B,iBAAiB,EAAE,gDAAgD;SACpE,CAAC;IACJ,CAAC;CACF;AAVD,kCAUC"}
