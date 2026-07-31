@@ -168,6 +168,10 @@ class PlanningStage {
                 }
             }
         }
+        const plannedToolIds = generatedPlan.tasks.map((t) => t.toolCall?.toolId);
+        const taskPayloads = generatedPlan.tasks.map((t) => ({ id: t.id, toolId: t.toolCall?.toolId, input: t.toolCall?.input }));
+        console.log(`[PlanningStage] Planned tool IDs: ${JSON.stringify(plannedToolIds)}`);
+        console.log(`[PlanningStage] Task payloads: ${JSON.stringify(taskPayloads)}`);
         const nextContext = pipeline_context_1.PipelineContextHelper.cloneWith(context, {
             taskGraph,
             executionStrategy,
@@ -220,7 +224,9 @@ class ExecutionStage {
         if (!context.generatedPlan) {
             return { status: 'skipped', durationMs: 0, warnings: ['No plan generated'], nextContext: context };
         }
+        console.log(`[ExecutionStage] Executing plan "${context.generatedPlan.id}" with ${context.generatedPlan.tasks.length} task(s)...`);
         const executionResults = await this.executionEngine.executePlan(context.generatedPlan);
+        console.log(`[ExecutionStage] Completed execution. Results count: ${executionResults.length}, results: ${JSON.stringify(executionResults)}`);
         const nextContext = pipeline_context_1.PipelineContextHelper.cloneWith(context, { executionResults });
         return {
             status: 'completed',

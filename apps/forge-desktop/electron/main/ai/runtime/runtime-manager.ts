@@ -73,12 +73,12 @@ export class RuntimeManager implements IRuntimeManager {
   }
 
   active(): IAiRuntime {
-    if (this.activeId !== null && this.runtimes.has(this.activeId)) {
+    if (this.activeId !== null && this.activeId !== 'auto' && this.runtimes.has(this.activeId)) {
       return this.runtimes.get(this.activeId)!;
     }
-    // Fallback to configured active runtime if registered
+    // Fallback to configured active runtime if registered and explicit
     const configuredId = this.configService?.getActiveRuntime();
-    if (configuredId && this.runtimes.has(configuredId)) {
+    if (configuredId && configuredId !== 'auto' && this.runtimes.has(configuredId)) {
       this.activeId = configuredId;
       return this.runtimes.get(configuredId)!;
     }
@@ -87,37 +87,38 @@ export class RuntimeManager implements IRuntimeManager {
     if (!first) {
       throw new Error('[RuntimeManager] No runtimes registered. Call register() before active().');
     }
-    this.activeId = first.id;
     return first;
   }
 
   /**
-   * Evaluates runtime health and falls back to a healthy runtime if current active is unhealthy.
-   * Fallback order:
-   *  1. Configured active runtime (if healthy)
-   *  2. Healthy Ollama
-   *  3. First healthy Cloud runtime
-   *  4. Mock / First registered
+   * Evaluates runtime health and falls back to a healthy runtime.
+   * Selection policy:
+   *  1. Explicit User Preference (if pinned in config/activeId and healthy, != 'auto')
+   *  2. Healthy Local Runtime (e.g. Ollama)
+   *  3. First Healthy Cloud Runtime
+   *  4. Offline Tier (Mock / First registered)
    * Never throws.
    */
   async resolveFallbackRuntime(): Promise<IAiRuntime> {
     const healthMap = await this.health();
 
-    // 1. Try active or configured active
-    const currentId = this.activeId || this.configService?.getActiveRuntime();
-    if (currentId && this.runtimes.has(currentId) && healthMap[currentId]?.healthy) {
-      this.activeId = currentId;
-      return this.runtimes.get(currentId)!;
+    // 1. Explicit User Preference (if pinned in config or activate() and healthy)
+    const configuredId = this.configService?.getActiveRuntime();
+    const explicitId = (this.activeId && this.activeId !== 'auto') ? this.activeId : (configuredId && configuredId !== 'auto' ? configuredId : null);
+    
+    if (explicitId && this.runtimes.has(explicitId) && healthMap[explicitId]?.healthy) {
+      this.activeId = explicitId;
+      return this.runtimes.get(explicitId)!;
     }
 
-    // 2. Try healthy Ollama
+    // 2. Healthy Local Runtime (e.g. Ollama)
     const ollama = this.runtimes.get('ollama');
     if (ollama && healthMap['ollama']?.healthy) {
       this.activeId = 'ollama';
       return ollama;
     }
 
-    // 3. Try healthy Cloud runtime
+    // 3. First Healthy Cloud Runtime
     for (const rt of this.getAll()) {
       if (rt.runtimeType === 'cloud' && healthMap[rt.id]?.healthy) {
         this.activeId = rt.id;
@@ -125,7 +126,7 @@ export class RuntimeManager implements IRuntimeManager {
       }
     }
 
-    // 4. Fallback to Mock or first registered
+    // 4. Offline Tier (Mock / First registered)
     const mock = this.runtimes.get('mock');
     if (mock) {
       this.activeId = 'mock';

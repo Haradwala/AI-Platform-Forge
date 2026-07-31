@@ -129,4 +129,9 @@ export interface IRuntimeManager extends IRuntimeRegistry {
    * Suitable for serialising over IPC.
    */
   list(): RuntimeListEntry[];
+
+  /**
+   * Resolves the best available runtime (configured active -> healthy local -> healthy cloud -> mock fallback).
+   */
+  resolveFallbackRuntime?(): Promise<IAiRuntime>;
 }

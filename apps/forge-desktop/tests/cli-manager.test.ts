@@ -38,7 +38,10 @@ describe('CLIManager', () => {
       outputLines.push(line.trim());
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    const start = Date.now();
+    while (outputLines.length === 0 && Date.now() - start < 3000) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
 
     expect(outputLines.join(' ')).toContain('Hello CLI');
     expect(manager.listSessions().length).toBe(1);

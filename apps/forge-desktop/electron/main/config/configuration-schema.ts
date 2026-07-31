@@ -30,7 +30,7 @@ export interface ForgeConfig {
  */
 export function createDefaultConfig(): ForgeConfig {
   return {
-    activeRuntime: 'mock',
+    activeRuntime: 'auto',
     defaultModels: {
       mock: 'mock-general-v1',
       ollama: 'llama3',

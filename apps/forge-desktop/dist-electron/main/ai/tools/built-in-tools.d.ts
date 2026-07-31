@@ -111,18 +111,23 @@ export declare class ListDirectoryTool implements ITool<{
     }>;
 }
 export declare class SearchWorkspaceTool implements ITool<{
-    query: string;
+    query?: string;
+    mode?: string;
+    fileType?: string;
+    text?: string;
+    symbol?: string;
 }, {
     results: Array<{
         filePath: string;
-        line: number;
+        line?: number;
         text: string;
     }>;
+    stats?: any;
 }> {
     private readonly workspaceService;
     private readonly repositoryProvider;
     readonly id = "search_workspace";
-    readonly description = "Searches the active workspace files recursively for text matches.";
+    readonly description = "Searches the active workspace files recursively based on query intent.";
     readonly inputSchema: {
         type: string;
         properties: {
@@ -130,8 +135,23 @@ export declare class SearchWorkspaceTool implements ITool<{
                 type: string;
                 description: string;
             };
+            mode: {
+                type: string;
+                description: string;
+            };
+            fileType: {
+                type: string;
+                description: string;
+            };
+            text: {
+                type: string;
+                description: string;
+            };
+            symbol: {
+                type: string;
+                description: string;
+            };
         };
-        required: string[];
     };
     readonly outputSchema: {
         type: string;
@@ -157,13 +177,18 @@ export declare class SearchWorkspaceTool implements ITool<{
     };
     constructor(workspaceService: IWorkspaceService, repositoryProvider: IRepositoryProvider);
     execute(input: {
-        query: string;
+        query?: string;
+        mode?: string;
+        fileType?: string;
+        text?: string;
+        symbol?: string;
     }): Promise<{
         results: Array<{
             filePath: string;
-            line: number;
+            line?: number;
             text: string;
         }>;
+        stats?: any;
     }>;
 }
 export declare class RunTerminalCommandTool implements ITool<{

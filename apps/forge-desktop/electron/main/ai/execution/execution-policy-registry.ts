@@ -1,7 +1,7 @@
 import type { ExecutionPolicy } from './execution-types';
 
 export class ExecutionPolicyRegistry {
-  private readonly readOnlyTools = new Set(['read_file', 'list_dir', 'grep_search', 'search_web', 'read_url_content']);
+  private readonly readOnlyTools = new Set(['read_file', 'list_dir', 'search_workspace', 'open_file', 'noop', 'toggle_terminal', 'grep_search', 'search_web', 'read_url_content']);
   private readonly dangerousTools = new Set(['run_command']);
 
   validate(

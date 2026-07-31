@@ -29,6 +29,7 @@ export class RepositoryIntelligenceEngine implements IRuntimeService, IRepositor
   private readonly search: RepositorySearchService;
 
   private manifest: IWorkspaceManifest | null = null;
+  private allWorkspaceFiles: string[] = [];
   private readonly listeners = new Set<RepositoryEventListener>();
   private readonly startTime = Date.now();
 
@@ -39,6 +40,12 @@ export class RepositoryIntelligenceEngine implements IRuntimeService, IRepositor
     this.events = new RepositoryEventService(eventBus);
     this.indexer = new IncrementalIndexerService(this.parser, this.symbols, this.graph, this.events);
     this.search = new RepositorySearchService(this.symbols, this.graph);
+
+    if (eventBus) {
+      eventBus.on('workspace.loaded', () => {
+        this.scanWorkspace().catch(() => {});
+      });
+    }
   }
 
   uptime(): number {
@@ -47,7 +54,7 @@ export class RepositoryIntelligenceEngine implements IRuntimeService, IRepositor
 
   metrics(): Record<string, any> {
     return {
-      filesIndexed: this.manifest?.filesCount || 0,
+      filesIndexed: this.manifest?.filesCount || this.allWorkspaceFiles.length || 0,
       symbolsCount: this.symbols.getAll().length,
     };
   }
@@ -63,6 +70,7 @@ export class RepositoryIntelligenceEngine implements IRuntimeService, IRepositor
     this.symbols.clear();
     this.graph.clear();
     this.listeners.clear();
+    this.allWorkspaceFiles = [];
   }
 
   async scanWorkspace(): Promise<void> {
@@ -72,6 +80,7 @@ export class RepositoryIntelligenceEngine implements IRuntimeService, IRepositor
     this.events.emitIndexingStarted();
 
     this.manifest = await this.discovery.discover(root);
+    const relativeFiles: string[] = [];
 
     const parseDir = async (dir: string) => {
       const files = await fs.promises.readdir(dir, { withFileTypes: true });
@@ -83,14 +92,22 @@ export class RepositoryIntelligenceEngine implements IRuntimeService, IRepositor
 
         if (file.isDirectory()) {
           await parseDir(fullPath);
-        } else if (file.isFile() && this.parser.supports(fullPath)) {
-          await this.indexer.indexFile(fullPath);
+        } else if (file.isFile()) {
+          const relPath = path.relative(root, fullPath);
+          relativeFiles.push(relPath);
+          if (this.parser.supports(fullPath)) {
+            await this.indexer.indexFile(fullPath);
+          }
         }
       }
     };
 
     try {
       await parseDir(root);
+      this.allWorkspaceFiles = relativeFiles;
+      if (this.manifest) {
+        this.manifest.filesCount = Math.max(this.manifest.filesCount || 0, relativeFiles.length);
+      }
       this.status = 'running';
       this.health = 'healthy';
 
@@ -104,6 +121,11 @@ export class RepositoryIntelligenceEngine implements IRuntimeService, IRepositor
 
   async query(request: RepositoryQuery): Promise<RepositoryResult> {
     try {
+      const root = this.workspaceService.getRootPath();
+      if (root && !this.manifest) {
+        await this.scanWorkspace();
+      }
+
       switch (request.type) {
         case 'findSymbol': {
           const syms = this.search.findSymbol(request.query);
@@ -130,14 +152,14 @@ export class RepositoryIntelligenceEngine implements IRuntimeService, IRepositor
           return { success: true, data: cycles };
         }
         case 'findFile': {
-          const files = this.search.findFile(request.query);
+          const files = this.search.findFile(request.query, this.allWorkspaceFiles);
           return { success: true, data: files };
         }
         case 'workspaceStatistics': {
           return {
             success: true,
             data: {
-              filesCount: this.manifest?.filesCount || 0,
+              filesCount: this.manifest?.filesCount || this.allWorkspaceFiles.length || 0,
               symbolsCount: this.symbols.getAll().length,
               circularDependenciesCount: this.graph.findCircularDependencies().length,
               languages: this.manifest?.languages || [],
@@ -146,10 +168,15 @@ export class RepositoryIntelligenceEngine implements IRuntimeService, IRepositor
           };
         }
         case 'findFilesByLanguage': {
-          const matches = this.symbols.getAll()
-            .filter((s) => s.language.toLowerCase() === request.language.toLowerCase())
-            .map((s) => s.file);
-          return { success: true, data: Array.from(new Set(matches)) };
+          const lang = request.language.toLowerCase();
+          const matches = this.allWorkspaceFiles.filter((f) => {
+            const ext = path.extname(f).toLowerCase();
+            if (lang === 'typescript') return ext === '.ts' || ext === '.tsx';
+            if (lang === 'javascript') return ext === '.js' || ext === '.jsx';
+            if (lang === 'python') return ext === '.py';
+            return ext.includes(lang);
+          });
+          return { success: true, data: matches };
         }
         default:
           return { success: false, data: null, error: `Unsupported query type: ${(request as any).type}` };

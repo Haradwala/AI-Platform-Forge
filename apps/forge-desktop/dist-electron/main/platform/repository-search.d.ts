@@ -9,5 +9,5 @@ export declare class RepositorySearchService {
     findReferences(symbolName: string): string[];
     findImplementations(interfaceName: string): ISymbol[];
     findCallers(functionName: string): string[];
-    findFile(query: string): string[];
+    findFile(query: string, workspaceFiles?: string[]): string[];
 }

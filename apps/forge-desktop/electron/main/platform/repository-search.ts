@@ -25,10 +25,18 @@ export class RepositorySearchService {
     return this.graph.getReferences(functionName);
   }
 
-  findFile(query: string): string[] {
+  findFile(query: string, workspaceFiles?: string[]): string[] {
     const files = new Set<string>();
+    const q = (query || '').toLowerCase();
+    if (workspaceFiles && workspaceFiles.length > 0) {
+      for (const f of workspaceFiles) {
+        if (!q || f.toLowerCase().includes(q)) {
+          files.add(f);
+        }
+      }
+    }
     for (const sym of this.symbolsIndex.getAll()) {
-      if (sym.file.toLowerCase().includes(query.toLowerCase())) {
+      if (!q || sym.file.toLowerCase().includes(q)) {
         files.add(sym.file);
       }
     }

@@ -49,7 +49,9 @@ export class ResponseGenerationEngine {
    */
   async generate(request: ResponseRequest): Promise<GenerationResult> {
     const startMs = Date.now();
-    const runtime = this.runtimeManager.active();
+    const runtime = this.runtimeManager.resolveFallbackRuntime
+      ? await this.runtimeManager.resolveFallbackRuntime()
+      : this.runtimeManager.active();
 
     this._emit('response:generation.started', {
       runtimeId: runtime.id,

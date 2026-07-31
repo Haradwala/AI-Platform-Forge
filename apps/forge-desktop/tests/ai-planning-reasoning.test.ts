@@ -114,5 +114,45 @@ describe('AI Planning & Reasoning System (Milestone 3.2)', () => {
       const strategy = execPlanner.determineStrategy(graph);
       expect(strategy.rollbackEnabled).toBe(true);
     });
+
+    it('classifies repository intents correctly for workspace statistics, TODO search, file search, symbol search, and directory listing', () => {
+      const planner = new GoalTaskPlanner();
+
+      // 1. Workspace Statistics
+      const intentStats = planner.classifyIntent('How many files are in this workspace?');
+      expect(intentStats.type).toBe('workspace_statistics');
+      const graphStats = planner.buildTaskGraph({ id: 'g1', description: 'How many files are in this workspace?', scope: 'workspace', targetFiles: [] });
+      expect(graphStats.nodes[0].toolId).toBe('search_workspace');
+
+      // 2. TODO search
+      const intentTodo = planner.classifyIntent('Search TODO');
+      expect(intentTodo.type).toBe('text_search');
+      if (intentTodo.type === 'text_search') {
+        expect(intentTodo.text).toBe('TODO');
+      }
+      const graphTodo = planner.buildTaskGraph({ id: 'g2', description: 'Search TODO', scope: 'workspace', targetFiles: [] });
+      expect(graphTodo.nodes[0].toolId).toBe('search_workspace');
+
+      // 3. File search
+      const intentFiles = planner.classifyIntent('List all TypeScript files');
+      expect(intentFiles.type).toBe('file_search');
+      const graphFiles = planner.buildTaskGraph({ id: 'g3', description: 'List all TypeScript files', scope: 'workspace', targetFiles: [] });
+      expect(graphFiles.nodes[0].toolId).toBe('search_workspace');
+
+      // 4. Symbol search
+      const intentSymbol = planner.classifyIntent('Find symbol TaskPlanner');
+      expect(intentSymbol.type).toBe('symbol_lookup');
+      if (intentSymbol.type === 'symbol_lookup') {
+        expect(intentSymbol.symbol).toBe('TaskPlanner');
+      }
+      const graphSymbol = planner.buildTaskGraph({ id: 'g4', description: 'Find symbol TaskPlanner', scope: 'workspace', targetFiles: [] });
+      expect(graphSymbol.nodes[0].toolId).toBe('search_workspace');
+
+      // 5. Directory listing
+      const intentDir = planner.classifyIntent('List project folders');
+      expect(intentDir.type).toBe('list_dir');
+      const graphDir = planner.buildTaskGraph({ id: 'g5', description: 'List project folders', scope: 'workspace', targetFiles: [] });
+      expect(graphDir.nodes[0].toolId).toBe('list_dir');
+    });
   });
 });

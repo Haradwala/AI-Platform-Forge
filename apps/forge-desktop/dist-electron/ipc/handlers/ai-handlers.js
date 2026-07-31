@@ -35,6 +35,15 @@ function registerAiHandlers(router, container) {
     router.handle('ai:set-provider', async (ctx) => {
         const providerId = ctx.args[0];
         sessionService.setProvider(providerId);
+        const runtimeManager = container.tryResolve(tokens_1.T.IRuntimeManager);
+        if (runtimeManager && typeof runtimeManager.activate === 'function') {
+            try {
+                runtimeManager.activate(providerId);
+            }
+            catch {
+                // Safe ignore if runtimeId is not registered in runtimeManager yet
+            }
+        }
         return { success: true };
     });
     router.handle('ai:get-models', async () => {

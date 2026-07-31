@@ -112,7 +112,7 @@ class MockProvider {
             return `Hello! I am Forge AI. How can I assist you with your codebase today?`;
         }
         // 4. Default placeholder for unsupported / general queries
-        return `This is a simulated response from the Mock Provider. A real runtime would generate an answer based on the supplied context.`;
+        return `This is a simulated response from the Mock Provider for "${prompt}". A real runtime would generate an answer based on the supplied context.`;
     }
 }
 exports.MockProvider = MockProvider;

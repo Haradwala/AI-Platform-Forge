@@ -63,7 +63,7 @@ describe('Configuration Service Suite', () => {
   describe('createDefaultConfig()', () => {
     it('creates default configuration with fallback values', () => {
       const def = createDefaultConfig();
-      expect(def.activeRuntime).toBe('mock');
+      expect(def.activeRuntime).toBe('auto');
       expect(def.providers.openai).toBeDefined();
       expect(def.providers.ollama.baseUrl).toBe('http://localhost:11434');
     });
@@ -113,7 +113,7 @@ describe('Configuration Service Suite', () => {
       const loader = new ConfigurationLoader(mockPath, mockFs);
       const loaded = loader.load();
 
-      expect(loaded.activeRuntime).toBe('mock');
+      expect(loaded.activeRuntime).toBe('auto');
       expect(mockFs.existsSync(mockPath)).toBe(true);
     });
 
@@ -140,7 +140,7 @@ describe('Configuration Service Suite', () => {
       const loader = new ConfigurationLoader(mockPath, mockFs);
       const loaded = loader.load();
 
-      expect(loaded.activeRuntime).toBe('mock');
+      expect(loaded.activeRuntime).toBe('auto');
     });
   });
 

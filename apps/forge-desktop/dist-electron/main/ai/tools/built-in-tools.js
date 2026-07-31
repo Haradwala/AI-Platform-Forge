@@ -34,6 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NoOpTool = exports.ToggleTerminalTool = exports.OpenFileTool = exports.RunTerminalCommandTool = exports.SearchWorkspaceTool = exports.ListDirectoryTool = exports.WriteFileTool = exports.ReadFileTool = void 0;
+const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 class ReadFileTool {
     workspaceService;
@@ -158,13 +159,16 @@ class SearchWorkspaceTool {
     workspaceService;
     repositoryProvider;
     id = 'search_workspace';
-    description = 'Searches the active workspace files recursively for text matches.';
+    description = 'Searches the active workspace files recursively based on query intent.';
     inputSchema = {
         type: 'object',
         properties: {
-            query: { type: 'string', description: 'String search term' }
-        },
-        required: ['query']
+            query: { type: 'string', description: 'String search query' },
+            mode: { type: 'string', description: 'Search mode: symbol_lookup | text_search | file_search | workspace_statistics' },
+            fileType: { type: 'string', description: 'File extensions filter, e.g. .ts,.tsx' },
+            text: { type: 'string', description: 'Target text to search' },
+            symbol: { type: 'string', description: 'Symbol name to lookup' }
+        }
     };
     outputSchema = {
         type: 'object',
@@ -188,12 +192,150 @@ class SearchWorkspaceTool {
     }
     async execute(input) {
         const root = this.workspaceService.getRootPath();
-        if (!root)
+        const queryStr = input.query || '';
+        const cleanQuery = queryStr.toLowerCase();
+        // 1. Determine search mode
+        let mode = input.mode;
+        if (!mode) {
+            if (cleanQuery.includes('how many files') ||
+                cleanQuery.includes('workspace statistics') ||
+                cleanQuery.includes('file count') ||
+                cleanQuery.includes('workspace stats')) {
+                mode = 'workspace_statistics';
+            }
+            else if (input.fileType || cleanQuery.includes('typescript') || cleanQuery.includes('.ts') || cleanQuery.includes('file')) {
+                mode = 'file_search';
+            }
+            else if (input.text || cleanQuery.includes('todo') || cleanQuery.startsWith('search ')) {
+                mode = 'text_search';
+            }
+            else {
+                mode = 'symbol_lookup';
+            }
+        }
+        // 2. Route based on search mode
+        if (mode === 'workspace_statistics') {
+            const result = await this.repositoryProvider.query({ type: 'workspaceStatistics' });
+            if (result.success && result.data) {
+                const stats = result.data;
+                const textSummary = `Total Workspace Files: ${stats.filesCount || 0}, Total Symbols: ${stats.symbolsCount || 0}, Languages: ${(stats.languages || []).join(', ') || 'N/A'}`;
+                return {
+                    results: [
+                        {
+                            filePath: 'workspace',
+                            line: 1,
+                            text: textSummary
+                        }
+                    ],
+                    stats
+                };
+            }
             return { results: [] };
-        const result = await this.repositoryProvider.query({ type: 'findSymbol', query: input.query });
+        }
+        if (mode === 'file_search') {
+            const results = [];
+            const fileType = input.fileType || (cleanQuery.includes('typescript') || cleanQuery.includes('.ts') ? '.ts,.tsx' : '');
+            if (fileType.includes('.ts') || fileType.includes('typescript')) {
+                const res = await this.repositoryProvider.query({ type: 'findFilesByLanguage', language: 'typescript' });
+                if (res.success && Array.isArray(res.data)) {
+                    for (const f of res.data) {
+                        results.push({
+                            filePath: root ? path.relative(root, f) : f,
+                            line: 1,
+                            text: `TypeScript file: ${root ? path.relative(root, f) : f}`
+                        });
+                    }
+                }
+            }
+            if (results.length === 0) {
+                const searchTerm = (input.query || '').replace(/list|all|files|search|find/gi, '').trim();
+                const res = await this.repositoryProvider.query({ type: 'findFile', query: searchTerm });
+                if (res.success && Array.isArray(res.data)) {
+                    for (const f of res.data) {
+                        results.push({
+                            filePath: root ? path.relative(root, f) : f,
+                            line: 1,
+                            text: `Matched file: ${root ? path.relative(root, f) : f}`
+                        });
+                    }
+                }
+            }
+            return { results: results.slice(0, 50) };
+        }
+        if (mode === 'text_search') {
+            const results = [];
+            const searchText = input.text || input.query?.replace(/search|find|grep|for/gi, '').trim() || 'TODO';
+            // 1. Symbol query
+            const symRes = await this.repositoryProvider.query({ type: 'findSymbol', query: searchText });
+            if (symRes.success && Array.isArray(symRes.data)) {
+                for (const sym of symRes.data) {
+                    results.push({
+                        filePath: root ? path.relative(root, sym.file) : sym.file,
+                        line: sym.line,
+                        text: `[${sym.kind}] ${sym.name}`
+                    });
+                }
+            }
+            // 2. Scan workspace files if available
+            if (root && fs.existsSync(root)) {
+                const scanFiles = async (dir) => {
+                    if (results.length >= 50)
+                        return;
+                    const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+                    for (const entry of entries) {
+                        if (results.length >= 50)
+                            break;
+                        const fullPath = path.join(dir, entry.name);
+                        if (['node_modules', '.git', 'dist', 'build', '.forge'].includes(entry.name))
+                            continue;
+                        if (entry.isDirectory()) {
+                            await scanFiles(fullPath);
+                        }
+                        else if (entry.isFile()) {
+                            try {
+                                const content = await fs.promises.readFile(fullPath, 'utf8');
+                                if (content.toLowerCase().includes(searchText.toLowerCase())) {
+                                    const lines = content.split('\n');
+                                    lines.forEach((lineText, lineIdx) => {
+                                        if (lineText.toLowerCase().includes(searchText.toLowerCase()) && results.length < 50) {
+                                            results.push({
+                                                filePath: path.relative(root, fullPath),
+                                                line: lineIdx + 1,
+                                                text: lineText.trim()
+                                            });
+                                        }
+                                    });
+                                }
+                            }
+                            catch {
+                                // Ignore unreadable files
+                            }
+                        }
+                    }
+                };
+                try {
+                    await scanFiles(root);
+                }
+                catch {
+                    // Ignore scanning error
+                }
+            }
+            // De-duplicate results
+            const uniqueMap = new Map();
+            for (const r of results) {
+                const key = `${r.filePath}:${r.line}:${r.text}`;
+                if (!uniqueMap.has(key)) {
+                    uniqueMap.set(key, r);
+                }
+            }
+            return { results: Array.from(uniqueMap.values()).slice(0, 50) };
+        }
+        // Default mode: symbol_lookup
+        const targetSymbol = input.symbol || input.query || '';
+        const result = await this.repositoryProvider.query({ type: 'findSymbol', query: targetSymbol });
         if (result.success && Array.isArray(result.data)) {
             const results = result.data.map((sym) => ({
-                filePath: path.relative(root, sym.file),
+                filePath: root ? path.relative(root, sym.file) : sym.file,
                 line: sym.line,
                 text: `[${sym.kind}] ${sym.name}`
             }));

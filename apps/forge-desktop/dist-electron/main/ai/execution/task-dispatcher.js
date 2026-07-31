@@ -14,13 +14,14 @@ class TaskDispatcher {
     }
     async dispatch(task, abortSignal, executionId) {
         const rootPath = this.workspaceService.getRootPath();
-        // 1. Policy validation check
         const policyCheck = this.policyRegistry.validate(task.executionPolicy, task.toolId, task.input, rootPath);
+        this.logger?.info(`[TaskDispatcher] Dispatching task "${task.id}" with selected tool "${task.toolId}", input: ${JSON.stringify(task.input)}`);
+        this.logger?.info(`[TaskDispatcher] Dispatcher decision: allowed=${policyCheck.allowed}, action=${policyCheck.action}, rootPath="${rootPath}"`);
         if (!policyCheck.allowed) {
             throw new Error(`Execution policy blocked tool run: ${policyCheck.reason}`);
         }
         if (policyCheck.action === 'mock') {
-            this.logger.info(`[TaskDispatcher] Dry run/Simulation mock value for task: ${task.id}`);
+            this.logger?.info(`[TaskDispatcher] Dry run/Simulation mock value for task: ${task.id}`);
             return { mock: true, toolId: task.toolId, status: 'simulated' };
         }
         // 2. Build isolated execution context

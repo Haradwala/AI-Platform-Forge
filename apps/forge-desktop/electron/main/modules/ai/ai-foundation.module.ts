@@ -96,6 +96,7 @@ import {
   NoOpTool,
 } from '../../ai/tools/built-in-tools';
 import { ResponseGenerationEngine } from '../../ai/response/response-generation-engine';
+import { DiagnosticsService } from '../../ai/diagnostics/diagnostics-service';
 import type { IRuntimeManager } from '../../ai/runtime/runtime-types';
 import type {
   IWorkspaceService,
@@ -117,20 +118,31 @@ export function registerBuiltInTools(registry: ToolRegistry, resolver: IServiceR
   const terminalAppService = resolver.tryResolve<ITerminalApplicationService>(T.ITerminalApplicationService) ?? undefined;
   const eventBus = resolver.tryResolve<IDesktopEventBus>(T.IDesktopEventBus) ?? undefined;
 
-  const stubWorkspaceService: IWorkspaceService = workspaceService ?? ({
-    getRootPath: () => null,
-    getRecentWorkspaces: async () => [],
-    open: async () => {},
-    close: async () => {},
-    readFile: async () => '',
-    writeFile: async () => {},
-    exists: async () => false,
-    delete: async () => {},
-  } as any);
+  const dynamicWorkspaceService: IWorkspaceService = new Proxy({} as IWorkspaceService, {
+    get(_target, prop: keyof IWorkspaceService) {
+      const live = resolver.tryResolve<IWorkspaceService>(T.IWorkspaceService) ?? workspaceService;
+      if (live && typeof live[prop] === 'function') {
+        return (live[prop] as Function).bind(live);
+      }
+      if (prop === 'getRootPath') return () => null;
+      if (prop === 'getRecentWorkspaces') return async () => [];
+      if (prop === 'getTree') return async () => null;
+      if (prop === 'readFile') return async () => '';
+      return async () => {};
+    }
+  });
 
-  const stubRepositoryProvider: IRepositoryProvider = repositoryProvider ?? ({
-    query: async () => ({ success: false, data: [] }),
-  } as any);
+  const dynamicRepositoryProvider: IRepositoryProvider = new Proxy({} as IRepositoryProvider, {
+    get(_target, prop: keyof IRepositoryProvider) {
+      const live = resolver.tryResolve<IRepositoryProvider>(T.IRepositoryProvider) ?? repositoryProvider;
+      if (live && typeof live[prop] === 'function') {
+        return (live[prop] as Function).bind(live);
+      }
+      if (prop === 'query') return async () => ({ success: false, data: [] });
+      if (prop === 'subscribe') return () => ({ dispose: () => {} });
+      return async () => {};
+    }
+  });
 
   const stubTerminalService: ITerminalService = terminalService ?? ({
     create: async () => {},
@@ -145,12 +157,12 @@ export function registerBuiltInTools(registry: ToolRegistry, resolver: IServiceR
     off: () => {},
   } as any);
 
-  registry.register(new ReadFileTool(stubWorkspaceService));
-  registry.register(new WriteFileTool(stubWorkspaceService, workspaceAppService));
-  registry.register(new ListDirectoryTool(stubWorkspaceService, stubRepositoryProvider));
-  registry.register(new SearchWorkspaceTool(stubWorkspaceService, stubRepositoryProvider));
-  registry.register(new RunTerminalCommandTool(stubTerminalService, terminalAppService, stubWorkspaceService));
-  registry.register(new OpenFileTool(stubEventBus, stubWorkspaceService));
+  registry.register(new ReadFileTool(dynamicWorkspaceService));
+  registry.register(new WriteFileTool(dynamicWorkspaceService, workspaceAppService));
+  registry.register(new ListDirectoryTool(dynamicWorkspaceService, dynamicRepositoryProvider));
+  registry.register(new SearchWorkspaceTool(dynamicWorkspaceService, dynamicRepositoryProvider));
+  registry.register(new RunTerminalCommandTool(stubTerminalService, terminalAppService, dynamicWorkspaceService));
+  registry.register(new OpenFileTool(stubEventBus, dynamicWorkspaceService));
   registry.register(new ToggleTerminalTool(stubEventBus));
   registry.register(new NoOpTool());
 
@@ -623,6 +635,20 @@ export class AiFoundationModule {
       lifetime: 'singleton',
       dependencies: [],
       factory: () => new PerformanceChecker()
+    });
+
+    container.registerSingleton<DiagnosticsService>({
+      token: T.IDiagnosticsService,
+      name: 'IDiagnosticsService',
+      lifetime: 'singleton',
+      dependencies: [],
+      factory: (resolver: IServiceResolver) => new DiagnosticsService(
+        resolver.tryResolve<any>(T.IAiSessionService) ?? undefined as any,
+        resolver.tryResolve<any>(T.IProviderRegistry) ?? undefined as any,
+        resolver.tryResolve<any>(T.IRepositoryProvider) ?? undefined as any,
+        resolver.tryResolve<any>(T.IMemoryRegistry) ?? undefined as any,
+        resolver.tryResolve<any>(T.IExecutionEngine) ?? undefined as any
+      )
     });
 
     container.registerSingleton<ResponseGenerationEngine>({

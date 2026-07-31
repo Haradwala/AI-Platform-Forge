@@ -17,6 +17,7 @@ export declare class RepositoryIntelligenceEngine implements IRuntimeService, IR
     private readonly indexer;
     private readonly search;
     private manifest;
+    private allWorkspaceFiles;
     private readonly listeners;
     private readonly startTime;
     constructor(workspaceService: IWorkspaceService, eventBus?: IDesktopEventBus);

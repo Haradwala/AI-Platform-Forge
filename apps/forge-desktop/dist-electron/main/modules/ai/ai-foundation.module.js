@@ -77,6 +77,7 @@ const workspace_profile_1 = require("../../ai/session/workspace-profile");
 const repository_importer_1 = require("../../platform/repository-importer");
 const built_in_tools_1 = require("../../ai/tools/built-in-tools");
 const response_generation_engine_1 = require("../../ai/response/response-generation-engine");
+const diagnostics_service_1 = require("../../ai/diagnostics/diagnostics-service");
 function registerBuiltInTools(registry, resolver) {
     const workspaceService = resolver.tryResolve(tokens_1.T.IWorkspaceService) ?? undefined;
     const workspaceAppService = resolver.tryResolve(tokens_1.T.IWorkspaceApplicationService) ?? undefined;
@@ -84,19 +85,36 @@ function registerBuiltInTools(registry, resolver) {
     const terminalService = resolver.tryResolve(tokens_1.T.ITerminalService) ?? undefined;
     const terminalAppService = resolver.tryResolve(tokens_1.T.ITerminalApplicationService) ?? undefined;
     const eventBus = resolver.tryResolve(tokens_1.T.IDesktopEventBus) ?? undefined;
-    const stubWorkspaceService = workspaceService ?? {
-        getRootPath: () => null,
-        getRecentWorkspaces: async () => [],
-        open: async () => { },
-        close: async () => { },
-        readFile: async () => '',
-        writeFile: async () => { },
-        exists: async () => false,
-        delete: async () => { },
-    };
-    const stubRepositoryProvider = repositoryProvider ?? {
-        query: async () => ({ success: false, data: [] }),
-    };
+    const dynamicWorkspaceService = new Proxy({}, {
+        get(_target, prop) {
+            const live = resolver.tryResolve(tokens_1.T.IWorkspaceService) ?? workspaceService;
+            if (live && typeof live[prop] === 'function') {
+                return live[prop].bind(live);
+            }
+            if (prop === 'getRootPath')
+                return () => null;
+            if (prop === 'getRecentWorkspaces')
+                return async () => [];
+            if (prop === 'getTree')
+                return async () => null;
+            if (prop === 'readFile')
+                return async () => '';
+            return async () => { };
+        }
+    });
+    const dynamicRepositoryProvider = new Proxy({}, {
+        get(_target, prop) {
+            const live = resolver.tryResolve(tokens_1.T.IRepositoryProvider) ?? repositoryProvider;
+            if (live && typeof live[prop] === 'function') {
+                return live[prop].bind(live);
+            }
+            if (prop === 'query')
+                return async () => ({ success: false, data: [] });
+            if (prop === 'subscribe')
+                return () => ({ dispose: () => { } });
+            return async () => { };
+        }
+    });
     const stubTerminalService = terminalService ?? {
         create: async () => { },
         write: () => { },
@@ -108,12 +126,12 @@ function registerBuiltInTools(registry, resolver) {
         on: () => { },
         off: () => { },
     };
-    registry.register(new built_in_tools_1.ReadFileTool(stubWorkspaceService));
-    registry.register(new built_in_tools_1.WriteFileTool(stubWorkspaceService, workspaceAppService));
-    registry.register(new built_in_tools_1.ListDirectoryTool(stubWorkspaceService, stubRepositoryProvider));
-    registry.register(new built_in_tools_1.SearchWorkspaceTool(stubWorkspaceService, stubRepositoryProvider));
-    registry.register(new built_in_tools_1.RunTerminalCommandTool(stubTerminalService, terminalAppService, stubWorkspaceService));
-    registry.register(new built_in_tools_1.OpenFileTool(stubEventBus, stubWorkspaceService));
+    registry.register(new built_in_tools_1.ReadFileTool(dynamicWorkspaceService));
+    registry.register(new built_in_tools_1.WriteFileTool(dynamicWorkspaceService, workspaceAppService));
+    registry.register(new built_in_tools_1.ListDirectoryTool(dynamicWorkspaceService, dynamicRepositoryProvider));
+    registry.register(new built_in_tools_1.SearchWorkspaceTool(dynamicWorkspaceService, dynamicRepositoryProvider));
+    registry.register(new built_in_tools_1.RunTerminalCommandTool(stubTerminalService, terminalAppService, dynamicWorkspaceService));
+    registry.register(new built_in_tools_1.OpenFileTool(stubEventBus, dynamicWorkspaceService));
     registry.register(new built_in_tools_1.ToggleTerminalTool(stubEventBus));
     registry.register(new built_in_tools_1.NoOpTool());
     return registry;
@@ -476,6 +494,13 @@ class AiFoundationModule {
             lifetime: 'singleton',
             dependencies: [],
             factory: () => new performance_checker_1.PerformanceChecker()
+        });
+        container.registerSingleton({
+            token: tokens_1.T.IDiagnosticsService,
+            name: 'IDiagnosticsService',
+            lifetime: 'singleton',
+            dependencies: [],
+            factory: (resolver) => new diagnostics_service_1.DiagnosticsService(resolver.tryResolve(tokens_1.T.IAiSessionService) ?? undefined, resolver.tryResolve(tokens_1.T.IProviderRegistry) ?? undefined, resolver.tryResolve(tokens_1.T.IRepositoryProvider) ?? undefined, resolver.tryResolve(tokens_1.T.IMemoryRegistry) ?? undefined, resolver.tryResolve(tokens_1.T.IExecutionEngine) ?? undefined)
         });
         container.registerSingleton({
             token: tokens_1.T.IResponseGenerationEngine,

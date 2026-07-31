@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ExecutionPolicyRegistry = void 0;
 class ExecutionPolicyRegistry {
-    readOnlyTools = new Set(['read_file', 'list_dir', 'grep_search', 'search_web', 'read_url_content']);
+    readOnlyTools = new Set(['read_file', 'list_dir', 'search_workspace', 'open_file', 'noop', 'toggle_terminal', 'grep_search', 'search_web', 'read_url_content']);
     dangerousTools = new Set(['run_command']);
     validate(policy, toolId, input, workspaceRoot) {
         const isWrite = !this.readOnlyTools.has(toolId);
