@@ -71,6 +71,11 @@ class ConfigurationLoader {
             }
             const content = this.fs.readFileSync(this.filePath, 'utf-8');
             const parsed = JSON.parse(content);
+            // Migration: convert legacy 'mock' default config to 'auto' for automatic discovery
+            if (parsed && parsed.activeRuntime === 'mock') {
+                parsed.activeRuntime = 'auto';
+                this.save(parsed);
+            }
             return parsed;
         }
         catch {

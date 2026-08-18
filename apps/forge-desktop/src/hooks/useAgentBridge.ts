@@ -65,19 +65,29 @@ export function useAgentBridge(): void {
 
           case 'PIPELINE_STARTED': {
             const { id: pipelineId, prompt } = evt.payload ?? {};
+            if (pipelineId && store.runs.some((r) => r.requestId === pipelineId || r.id === pipelineId)) {
+              const existing = store.runs.find((r) => r.requestId === pipelineId || r.id === pipelineId);
+              if (existing) activeRunId = existing.id;
+              break;
+            }
             const title = prompt
               ? String(prompt).slice(0, 50) + (prompt.length > 50 ? '…' : '')
               : `Run ${new Date().toLocaleTimeString()}`;
             const runtimeId = ai.activeProviderId || 'unknown';
             const modelId   = ai.activeModelId    || 'unknown';
-            activeRunId = store.createRun(title, runtimeId, modelId);
+            activeRunId = store.createRun(title, runtimeId, modelId, pipelineId);
             stageMap.clear();
             break;
           }
 
           case 'STAGE_STARTED': {
-            if (!activeRunId) break;
-            const { phase = 'UNKNOWN', stageName = 'Stage', runtimeId, modelId, tokenCount, logs } = evt.payload ?? {};
+            const { id: reqId, phase = 'UNKNOWN', stageName = 'Stage', runtimeId, modelId, tokenCount, logs } = evt.payload ?? {};
+            const targetRunId = activeRunId || reqId;
+            if (!targetRunId) break;
+
+            const stageKey = `${targetRunId}:${stageName}:${phase}`;
+            if (stageMap.has(stageKey)) break;
+
             const id = nextStageId();
             const stage: TimelineStage = {
               id,
@@ -90,8 +100,9 @@ export function useAgentBridge(): void {
               tokenCount,
               logs: Array.isArray(logs) ? logs : undefined,
             };
+            stageMap.set(stageKey, id);
             stageMap.set(stageName, id);
-            store.appendStage(activeRunId, stage);
+            store.appendStage(targetRunId, stage);
             break;
           }
 

@@ -45,6 +45,21 @@ export class RepositoryIntelligenceEngine implements IRuntimeService, IRepositor
       eventBus.on('workspace.loaded', () => {
         this.scanWorkspace().catch(() => {});
       });
+      eventBus.on('workspace:file-created', (data: any) => {
+        if (data?.path && !data.isDirectory) {
+          this.onFileAdded(data.path).catch(() => {});
+        }
+      });
+      eventBus.on('workspace:file-deleted', (data: any) => {
+        if (data?.path) {
+          this.onFileDeleted(data.path).catch(() => {});
+        }
+      });
+      eventBus.on('workspace:file-changed', (data: any) => {
+        if (data?.path) {
+          this.onFileChanged(data.path).catch(() => {});
+        }
+      });
     }
   }
 
@@ -74,7 +89,7 @@ export class RepositoryIntelligenceEngine implements IRuntimeService, IRepositor
   }
 
   async scanWorkspace(): Promise<void> {
-    const root = this.workspaceService.getRootPath();
+    const root = this.workspaceService?.getRootPath() || process.cwd();
     if (!root) return;
 
     this.events.emitIndexingStarted();
@@ -82,18 +97,42 @@ export class RepositoryIntelligenceEngine implements IRuntimeService, IRepositor
     this.manifest = await this.discovery.discover(root);
     const relativeFiles: string[] = [];
 
+    /**
+     * Directories excluded from source-intelligence indexing.
+     *
+     * IMPORTANT: This controls what gets indexed for code analysis, NOT
+     * filesystem visibility. A query like "Where is .vscode/settings.json?"
+     * still works via the deterministic file-query path (raw fs operations).
+     * These dirs are excluded to prevent build artifacts and IDE metadata
+     * from polluting workspace search and symbol index results.
+     */
+    const SOURCE_EXCLUDED_DIRS = new Set([
+      'node_modules', '.git', 'dist', 'dist-electron', 'build', 'out',
+      '.forge', '.next', '.turbo', 'coverage', 'target', 'tmp', 'temp',
+    ]);
+
     const parseDir = async (dir: string) => {
       const files = await fs.promises.readdir(dir, { withFileTypes: true });
       for (const file of files) {
         const fullPath = path.join(dir, file.name);
-        if (file.name === 'node_modules' || file.name === '.git' || file.name === 'dist' || file.name === 'build' || file.name === '.forge') {
-          continue;
-        }
 
+        // Skip directories excluded from source-intelligence scope
         if (file.isDirectory()) {
+          if (SOURCE_EXCLUDED_DIRS.has(file.name)) continue;
           await parseDir(fullPath);
         } else if (file.isFile()) {
           const relPath = path.relative(root, fullPath);
+
+          // Exclude generated .d.ts files inside build output dirs.
+          // Source .d.ts files (e.g. src/types/env.d.ts) are preserved.
+          if (relPath.endsWith('.d.ts')) {
+            const normalizedRel = relPath.replace(/\\/g, '/');
+            const buildDirPattern = /^(dist|dist-electron|build|out|\.next)\//;
+            if (buildDirPattern.test(normalizedRel)) {
+              continue;
+            }
+          }
+
           relativeFiles.push(relPath);
           if (this.parser.supports(fullPath)) {
             await this.indexer.indexFile(fullPath);
@@ -121,7 +160,7 @@ export class RepositoryIntelligenceEngine implements IRuntimeService, IRepositor
 
   async query(request: RepositoryQuery): Promise<RepositoryResult> {
     try {
-      const root = this.workspaceService.getRootPath();
+      const root = this.workspaceService?.getRootPath() || process.cwd();
       if (root && !this.manifest) {
         await this.scanWorkspace();
       }
@@ -193,6 +232,33 @@ export class RepositoryIntelligenceEngine implements IRuntimeService, IRepositor
         this.listeners.delete(listener);
       },
     };
+  }
+
+  async onFileAdded(filePath: string): Promise<void> {
+    const root = this.workspaceService.getRootPath();
+    if (root) {
+      const relPath = path.relative(root, filePath);
+      if (!this.allWorkspaceFiles.includes(relPath)) {
+        this.allWorkspaceFiles.push(relPath);
+      }
+      if (this.manifest) {
+        this.manifest.filesCount = this.allWorkspaceFiles.length;
+      }
+    }
+    if (this.parser.supports(filePath)) {
+      await this.indexer.indexFile(filePath);
+    }
+  }
+
+  async onFileDeleted(filePath: string): Promise<void> {
+    const root = this.workspaceService.getRootPath();
+    if (root) {
+      const relPath = path.relative(root, filePath);
+      this.allWorkspaceFiles = this.allWorkspaceFiles.filter((f) => f !== relPath && f !== filePath);
+      if (this.manifest) {
+        this.manifest.filesCount = this.allWorkspaceFiles.length;
+      }
+    }
   }
 
   async onFileChanged(filePath: string): Promise<void> {

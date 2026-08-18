@@ -3,7 +3,8 @@
  * ai-intelligence.module.ts — Sub-module for Engineering & Code Intelligence
  *
  * Registers RepositoryIndexer, CodeIntelligenceEngine, WorkspaceEngine,
- * EngineeringIntelligenceEngine, SemanticKnowledgeBuilder, and LearningEngine.
+ * EngineeringIntelligenceEngine, SemanticKnowledgeBuilder, LearningEngine,
+ * and (Sprint 87) WorkspaceSymbolIndexer, DependencyGraphEngine, SemanticContextRetriever.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AiIntelligenceModule = void 0;
@@ -13,6 +14,9 @@ const code_intelligence_engine_1 = require("../../ai/code-intelligence/code-inte
 const workspace_engine_1 = require("../../ai/workspace/workspace-engine");
 const engineering_intelligence_engine_1 = require("../../ai/intelligence/engineering-intelligence-engine");
 const semantic_knowledge_builder_1 = require("../../ai/knowledge/semantic-knowledge-builder");
+const symbol_indexer_1 = require("../../ai/workspace/symbol-indexer");
+const dependency_graph_engine_1 = require("../../ai/workspace/dependency-graph-engine");
+const semantic_retriever_1 = require("../../ai/context/semantic-retriever");
 const learning_engine_1 = require("../../ai/learning/learning-engine");
 const memory_registry_1 = require("../../ai/memory/memory-registry");
 const repository_intelligence_1 = require("../../platform/repository-intelligence");
@@ -66,7 +70,32 @@ class AiIntelligenceModule {
             dependencies: [tokens_1.T.IRepositoryProvider],
             factory: (resolver) => new semantic_knowledge_builder_1.SemanticKnowledgeBuilder(resolver.resolve(tokens_1.T.IRepositoryProvider))
         });
-        // Learning Engine
+        // Sprint 87: WorkspaceSymbolIndexer — wired through DI so SCR + orchestrator
+        // share a single instance rather than parallel module-level singletons.
+        container.registerSingleton({
+            token: tokens_1.T.IWorkspaceSymbolIndexer,
+            name: 'IWorkspaceSymbolIndexer',
+            lifetime: 'singleton',
+            dependencies: [],
+            factory: () => new symbol_indexer_1.WorkspaceSymbolIndexer()
+        });
+        // Sprint 87: DependencyGraphEngine — depends on shared WorkspaceSymbolIndexer
+        container.registerSingleton({
+            token: tokens_1.T.IDependencyGraphEngine,
+            name: 'IDependencyGraphEngine',
+            lifetime: 'singleton',
+            dependencies: [tokens_1.T.IWorkspaceSymbolIndexer],
+            factory: (resolver) => new dependency_graph_engine_1.DependencyGraphEngine(resolver.resolve(tokens_1.T.IWorkspaceSymbolIndexer))
+        });
+        // Sprint 87: SemanticContextRetriever — depends on shared indexer + graph engine.
+        // Now injectable into AiOrchestrator via DI; no new instance created inside orchestrator.
+        container.registerSingleton({
+            token: tokens_1.T.ISemanticContextRetriever,
+            name: 'ISemanticContextRetriever',
+            lifetime: 'singleton',
+            dependencies: [tokens_1.T.IWorkspaceSymbolIndexer, tokens_1.T.IDependencyGraphEngine],
+            factory: (resolver) => new semantic_retriever_1.SemanticContextRetriever(resolver.resolve(tokens_1.T.IWorkspaceSymbolIndexer), resolver.resolve(tokens_1.T.IDependencyGraphEngine))
+        });
         container.registerSingleton({
             token: tokens_1.T.ILearningEngine,
             name: 'ILearningEngine',

@@ -36,6 +36,13 @@ export function isNonRetriable(err: unknown): boolean {
   if (err instanceof ForgeError) {
     return NON_RETRIABLE_CODES.has(err.code as any);
   }
+  if (err && typeof err === 'object') {
+    const code = (err as any).code;
+    const msg = String((err as any).message || '');
+    if (code === 'ENOENT' || msg.includes('ENOENT') || msg.includes('no such file or directory') || msg.includes('does not exist')) {
+      return true;
+    }
+  }
   return false;
 }
 

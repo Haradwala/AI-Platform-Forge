@@ -22,6 +22,7 @@ export interface ITaskNode {
     readonly priority: 'high' | 'normal' | 'low';
     readonly risk: 'high' | 'medium' | 'low';
     readonly toolId: string;
+    readonly input?: any;
     status: 'pending' | 'running' | 'completed' | 'failed';
 }
 export type { ISymbol };

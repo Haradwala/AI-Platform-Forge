@@ -147,6 +147,7 @@ export interface AgentCard {
 
 export interface AgentRun {
   readonly id: string;
+  readonly requestId?: string;
   title: string;
   status: RunStatus;
   reviewStatus?: 'pending_review' | 'approved' | 'rejected';

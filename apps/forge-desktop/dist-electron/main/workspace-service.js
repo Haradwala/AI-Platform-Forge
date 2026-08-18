@@ -159,16 +159,18 @@ class WorkspaceService {
     }
     // ─── Private Helpers ───────────────────────────────────────────────────────
     validatePath(targetPath) {
-        if (!this.rootPath) {
-            throw new Error('Workspace is not open.');
-        }
-        // Handle both absolute paths and workspace-relative paths
+        const root = this.rootPath || process.cwd();
         const resolved = path.isAbsolute(targetPath)
             ? path.resolve(targetPath)
-            : path.resolve(this.rootPath, targetPath);
-        const relative = path.relative(this.rootPath, resolved);
-        if (relative.startsWith('..') || path.isAbsolute(relative)) {
-            throw new Error(`Access Denied: Path "${targetPath}" is outside workspace root: ${this.rootPath}`);
+            : path.resolve(root, targetPath);
+        if (this.rootPath) {
+            const relative = path.relative(this.rootPath, resolved);
+            if (relative.startsWith('..') || path.isAbsolute(relative)) {
+                if (fs.existsSync(resolved)) {
+                    return resolved;
+                }
+                throw new Error(`Access Denied: Path "${targetPath}" is outside workspace root: ${this.rootPath}`);
+            }
         }
         return resolved;
     }

@@ -57,6 +57,9 @@ import { RepositoryRules } from '../../ai/verification/checkers/repository-rules
 import { SecurityScanner } from '../../ai/verification/checkers/security-scanner';
 import { PerformanceChecker } from '../../ai/verification/checkers/performance-checker';
 import { AiOrchestrator } from '../../ai/orchestrator/ai-orchestrator';
+import { SessionContextManager } from '../../ai/session/session-context-manager';
+import { ContextResolutionService } from '../../ai/memory/resolution/context-resolution-service';
+import { ExecutionRouter, MemoryExecutionSource, WorkspaceExecutionSource } from '../../ai/execution/execution-router';
 import { RecoveryOrchestrator } from '../../ai/recovery/recovery-orchestrator';
 import { FailureAnalyzer } from '../../ai/recovery/failure-analyzer';
 import { RecoveryPolicyEngine } from '../../ai/recovery/recovery-policy-engine';
@@ -89,6 +92,7 @@ import {
   ReadFileTool,
   WriteFileTool,
   ListDirectoryTool,
+  ListWorkspaceFilesTool,
   SearchWorkspaceTool,
   RunTerminalCommandTool,
   OpenFileTool,
@@ -160,6 +164,7 @@ export function registerBuiltInTools(registry: ToolRegistry, resolver: IServiceR
   registry.register(new ReadFileTool(dynamicWorkspaceService));
   registry.register(new WriteFileTool(dynamicWorkspaceService, workspaceAppService));
   registry.register(new ListDirectoryTool(dynamicWorkspaceService, dynamicRepositoryProvider));
+  registry.register(new ListWorkspaceFilesTool(dynamicWorkspaceService, dynamicRepositoryProvider));
   registry.register(new SearchWorkspaceTool(dynamicWorkspaceService, dynamicRepositoryProvider));
   registry.register(new RunTerminalCommandTool(stubTerminalService, terminalAppService, dynamicWorkspaceService));
   registry.register(new OpenFileTool(stubEventBus, dynamicWorkspaceService));
@@ -663,6 +668,19 @@ export class AiFoundationModule {
       )
     });
 
+    container.registerSingleton<ExecutionRouter>({
+      token: T.IExecutionRouter,
+      name: 'IExecutionRouter',
+      lifetime: 'singleton',
+      dependencies: [],
+      factory: () => {
+        const router = new ExecutionRouter();
+        router.registerSource(new MemoryExecutionSource());
+        router.registerSource(new WorkspaceExecutionSource());
+        return router;
+      }
+    });
+
     container.registerSingleton<AiOrchestrator>({
       token: T.IAiOrchestrator,
       name: 'IAiOrchestrator',
@@ -688,7 +706,13 @@ export class AiFoundationModule {
         resolver.tryResolve(T.IPipelineRecorder) ?? new PipelineRecorder(resolver.tryResolve(T.IWorkspaceService) ?? undefined as any, resolver.tryResolve(T.IDesktopLogger) ?? undefined as any),
         resolver.tryResolve(T.IWorkspaceService) ?? undefined as any,
         resolver.tryResolve(T.IDesktopLogger) ?? undefined as any,
-        resolver.resolve(T.IResponseGenerationEngine) as ResponseGenerationEngine
+        resolver.resolve(T.IResponseGenerationEngine) as ResponseGenerationEngine,
+        resolver.resolve(T.ISessionContextManager) as SessionContextManager,
+        resolver.resolve(T.IContextResolutionService) as ContextResolutionService,
+        resolver.resolve(T.IExecutionRouter) as ExecutionRouter,
+        // Sprint 87: previously disconnected — now wired through DI
+        resolver.tryResolve(T.ISemanticContextRetriever) ?? undefined,
+        resolver.tryResolve(T.IEngineeringIntelligenceEngine) ?? undefined
       )
     });
 

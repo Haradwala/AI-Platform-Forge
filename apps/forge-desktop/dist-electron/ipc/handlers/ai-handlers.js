@@ -35,6 +35,10 @@ function registerAiHandlers(router, container) {
     router.handle('ai:set-provider', async (ctx) => {
         const providerId = ctx.args[0];
         sessionService.setProvider(providerId);
+        const configService = container.tryResolve(tokens_1.T.IConfigurationService);
+        if (configService && typeof configService.setActiveRuntime === 'function') {
+            configService.setActiveRuntime(providerId);
+        }
         const runtimeManager = container.tryResolve(tokens_1.T.IRuntimeManager);
         if (runtimeManager && typeof runtimeManager.activate === 'function') {
             try {
@@ -44,7 +48,22 @@ function registerAiHandlers(router, container) {
                 // Safe ignore if runtimeId is not registered in runtimeManager yet
             }
         }
+        broadcast('ai:runtime-changed', { activeRuntime: providerId, isExplicit: providerId !== 'auto' });
         return { success: true };
+    });
+    router.handle('ai:get-active-runtime', async () => {
+        const configService = container.tryResolve(tokens_1.T.IConfigurationService);
+        const runtimeManager = container.tryResolve(tokens_1.T.IRuntimeManager);
+        const configuredId = configService?.getActiveRuntime() || 'auto';
+        const resolvedRuntime = runtimeManager?.resolveFallbackRuntime
+            ? await runtimeManager.resolveFallbackRuntime()
+            : runtimeManager?.active();
+        return {
+            configuredRuntime: configuredId,
+            activeRuntime: resolvedRuntime?.id || 'mock',
+            isExplicit: configuredId !== 'auto',
+            isFallback: configuredId !== 'auto' && resolvedRuntime?.id !== configuredId,
+        };
     });
     router.handle('ai:get-models', async () => {
         const s = sessionService.getActiveSession();
@@ -318,5 +337,6 @@ function registerAiHandlers(router, container) {
     });
     // Forward event stream to all windows
     eventBus.on('ai:event', (data) => broadcast('ai:event', data));
+    eventBus.on('ai:execute-command', (data) => broadcast('ai:execute-command', data));
 }
 //# sourceMappingURL=ai-handlers.js.map

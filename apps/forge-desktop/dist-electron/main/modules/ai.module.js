@@ -12,12 +12,15 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AiModule = void 0;
+const tokens_1 = require("../container/tokens");
 const application_module_1 = require("./application.module");
 const ai_foundation_module_1 = require("./ai/ai-foundation.module");
 const ai_intelligence_module_1 = require("./ai/ai-intelligence.module");
 const ai_runtimes_module_1 = require("./ai/ai-runtimes.module");
 const ai_actions_module_1 = require("./ai/ai-actions.module");
 const ai_agents_module_1 = require("./ai/ai-agents.module");
+const session_context_manager_1 = require("../ai/session/session-context-manager");
+const context_resolution_service_1 = require("../ai/memory/resolution/context-resolution-service");
 class AiModule {
     name = 'AiModule';
     register(container) {
@@ -27,6 +30,30 @@ class AiModule {
         ai_runtimes_module_1.AiRuntimesModule.register(container);
         ai_actions_module_1.AiActionsModule.register(container);
         ai_agents_module_1.AiAgentsModule.register(container);
+        try {
+            container.registerSingleton({
+                token: tokens_1.T.ISessionContextManager,
+                name: 'ISessionContextManager',
+                lifetime: 'singleton',
+                dependencies: [],
+                factory: () => new session_context_manager_1.SessionContextManager()
+            });
+        }
+        catch {
+            // already registered
+        }
+        try {
+            container.registerSingleton({
+                token: tokens_1.T.IContextResolutionService,
+                name: 'IContextResolutionService',
+                lifetime: 'singleton',
+                dependencies: [],
+                factory: () => new context_resolution_service_1.ContextResolutionService()
+            });
+        }
+        catch {
+            // already registered
+        }
     }
     static register(container) {
         new AiModule().register(container);

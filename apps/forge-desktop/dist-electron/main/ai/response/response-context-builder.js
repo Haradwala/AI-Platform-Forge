@@ -4,30 +4,22 @@
  *
  * ResponseContextBuilder — assembles a structured, provider-agnostic
  * ResponseRequest from a completed PipelineContext.
- *
- * Responsibilities:
- *  - Read PipelineContext fields safely (every field is optional)
- *  - Produce a flat, typed ResponseRequest with no internal engineering types
- *  - Make NO decisions about prompt format or runtime selection
- *  - Remain stateless and dependency-free (no DI required)
- *
- * The ResponseGenerationEngine is responsible for turning ResponseRequest
- * into a runtime-specific prompt string.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ResponseContextBuilder = void 0;
 const fact_interpreter_1 = require("./fact-interpreter");
+const result_normalizer_1 = require("../pipeline/result-normalizer");
 class ResponseContextBuilder {
-    factInterpreter = new fact_interpreter_1.FactInterpreter();
+    factInterpreter;
+    normalizer;
+    constructor(factInterpreter = new fact_interpreter_1.FactInterpreter(), normalizer = new result_normalizer_1.ResultNormalizer()) {
+        this.factInterpreter = factInterpreter;
+        this.normalizer = normalizer;
+    }
     /**
-     * Assembles a ResponseRequest from the pipeline's final context and
-     * the original user prompt.
-     *
-     * All fields degrade gracefully when context data is absent (e.g., when
-     * a stage was skipped).
+     * Assembles a ResponseRequest from the pipeline's final context and user prompt.
      */
-    build(context, userPrompt) {
-        // Use the real IPlan.goal field (not goalDescription)
+    build(context, userPrompt, activeFileFact) {
         const goal = context.generatedPlan?.goal ||
             context.generatedPlan?.goalDescription ||
             userPrompt;
@@ -36,12 +28,30 @@ class ResponseContextBuilder {
             true;
         const verificationSuccess = context.verificationReport?.success ?? true;
         const recommendations = context.reflectionReport?.recommendations ?? [];
-        // Assemble a brief context summary from available collection data.
         const contextSummary = this._buildContextSummary(context);
-        // Interpret execution results into structured GroundedContext facts
+        // Pass results through ResultNormalizer before handing to FactInterpreter
         let groundedContext;
         if (context.executionResults && context.executionResults.length > 0) {
-            groundedContext = this.factInterpreter.interpret(context.executionResults);
+            const normalizedResults = context.executionResults.map((exec) => {
+                if (!exec.result)
+                    return exec;
+                const normalized = this.normalizer.normalize(exec.result);
+                return { ...exec, result: normalized };
+            });
+            groundedContext = this.factInterpreter.interpret(normalizedResults);
+        }
+        if (activeFileFact) {
+            const existingFacts = groundedContext?.knowledgeFacts ?? [];
+            const hasSamePath = existingFacts.some((f) => f.kind === 'file_content' && f.path === activeFileFact.path);
+            if (!hasSamePath) {
+                const knowledgeFacts = [activeFileFact, ...existingFacts];
+                groundedContext = {
+                    executionResults: groundedContext?.executionResults ?? [],
+                    repositoryFacts: groundedContext?.repositoryFacts ?? [activeFileFact],
+                    terminalFacts: groundedContext?.terminalFacts ?? [],
+                    knowledgeFacts,
+                };
+            }
         }
         return {
             userPrompt,

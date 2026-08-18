@@ -12,7 +12,7 @@ exports.createDefaultConfig = createDefaultConfig;
  */
 function createDefaultConfig() {
     return {
-        activeRuntime: 'mock',
+        activeRuntime: 'auto',
         defaultModels: {
             mock: 'mock-general-v1',
             ollama: 'llama3',

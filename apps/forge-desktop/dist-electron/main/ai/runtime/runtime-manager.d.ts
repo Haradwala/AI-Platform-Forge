@@ -29,12 +29,12 @@ export declare class RuntimeManager implements IRuntimeManager {
     activate(id: string): void;
     active(): IAiRuntime;
     /**
-     * Evaluates runtime health and falls back to a healthy runtime if current active is unhealthy.
-     * Fallback order:
-     *  1. Configured active runtime (if healthy)
-     *  2. Healthy Ollama
-     *  3. First healthy Cloud runtime
-     *  4. Mock / First registered
+     * Evaluates runtime health and falls back to a healthy runtime.
+     * Selection policy:
+     *  1. Explicit User Preference (if pinned in config/activeId and healthy, != 'auto')
+     *  2. Healthy Local Runtime (e.g. Ollama)
+     *  3. First Healthy Cloud Runtime
+     *  4. Offline Tier (Mock / First registered)
      * Never throws.
      */
     resolveFallbackRuntime(): Promise<IAiRuntime>;

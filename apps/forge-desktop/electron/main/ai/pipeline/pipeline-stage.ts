@@ -180,13 +180,26 @@ export class PlanningStage implements IAiPipelineStage {
 
     const taskGraph = this.taskPlanner.buildTaskGraph(context.goalExtracted);
     const executionStrategy = this.strategyPlanner.determineStrategy(taskGraph);
+    const baseContext = context.contextCollected || {
+      timestamp: new Date().toISOString(),
+      editor: { activeFilePath: null, openFilePaths: [], currentSelection: null, cursorPosition: null },
+      workspace: { rootPath: context.workspaceRoot || null, recentCommands: [], activeThemeId: '', gitBranchPlaceholder: '' },
+    };
+
+    const sessionServices = (context as any).session || (baseContext as any)?.session;
+    const enrichedContext = {
+      ...baseContext,
+      state: (context as any).state || (baseContext as any)?.state || (sessionServices?.getState ? sessionServices.getState() : undefined),
+      session: sessionServices,
+      entities: (context as any).entities || (baseContext as any)?.entities,
+      previousExecutionResults: context.executionResults || (baseContext as any)?.previousExecutionResults || [],
+      knowledgeFacts: (context as any).knowledgeFacts || (baseContext as any)?.knowledgeFacts || [],
+      conversationHistory: (context as any).conversationHistory || (baseContext as any)?.conversationHistory || [],
+    };
+
     const generatedPlan = await this.corePlanner.generatePlan(
       context.prompt,
-      context.contextCollected || {
-        timestamp: '',
-        editor: { activeFilePath: null, openFilePaths: [], currentSelection: null, cursorPosition: null },
-        workspace: { rootPath: null, recentCommands: [], activeThemeId: '', gitBranchPlaceholder: '' },
-      }
+      enrichedContext
     );
 
     // Validate that every task in the generated plan specifies a valid, registered tool ID

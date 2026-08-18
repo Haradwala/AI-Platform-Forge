@@ -76,7 +76,17 @@ class MockProvider {
         // Check if prompt contains File Content facts from tool execution
         const fileContentMatch = prompt.match(/File Content \(([^)]+)\):/i);
         if (fileContentMatch) {
-            return `Opened and read content from "${fileContentMatch[1]}".`;
+            const fileName = fileContentMatch[1];
+            if (cleanQuery.includes('summarize')) {
+                return `Summary of "${fileName}": This file defines project structure, dependencies, and configuration settings.`;
+            }
+            if (cleanQuery.includes('explain')) {
+                return `Explanation of "${fileName}": This component manages core application orchestration and workflow pipeline.`;
+            }
+            if (cleanQuery.includes('what file') || cleanQuery.includes('discussing')) {
+                return `We are currently discussing "${fileName}".`;
+            }
+            return `Opened and read content from "${fileName}".`;
         }
         // Check if prompt contains Directory Listing facts from tool execution
         const dirListMatch = prompt.match(/Directory Listing \(([^)]+)\):\s*(\d+) items/i);

@@ -391,6 +391,7 @@ export function registerAiHandlers(router: IIpcRouter, container: IServiceResolv
 
   // Forward event stream to all windows
   eventBus.on('ai:event', (data) => broadcast('ai:event', data));
+  eventBus.on('ai:execute-command', (data) => broadcast('ai:execute-command', data));
 }
 
 

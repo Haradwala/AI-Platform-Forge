@@ -1,24 +1,17 @@
 /**
  * fact-interpreter.ts
  *
- * FactInterpreter — interprets raw IExecutionResult[] items into
- * structured GroundedContext facts (RepositoryFact, TerminalFact).
- *
- * Responsibilities:
- *  - Separate interpretation logic from ResponseContextBuilder
- *  - Match tool execution results by toolId in a type-safe manner
- *  - Construct immutable RepositoryFact and TerminalFact discriminated unions
- *  - Preserve raw executionResults alongside interpreted facts
- *
- * Canonical Architecture Rule:
- *  Execution layers never produce prompts. Response layers never inspect tools.
- *  GroundedContext is the only contract crossing that boundary.
+ * FactInterpreter / KnowledgeInterpreter — delegates execution result
+ * interpretation to KnowledgeInterpreterRegistry strategy handlers.
  */
 import type { IExecutionResult } from '../execution/execution-types';
 import type { GroundedContext } from './response-types';
+import { KnowledgeInterpreterRegistry } from './interpreters/knowledge-interpreter-registry';
 export declare class FactInterpreter {
+    private readonly registry;
+    constructor(registry?: KnowledgeInterpreterRegistry);
     /**
-     * Interprets raw IExecutionResult[] items into a structured, immutable GroundedContext.
+     * Interprets normalized ExecutionResult envelopes into GroundedContext facts.
      */
     interpret(executionResults: readonly IExecutionResult[]): GroundedContext;
 }

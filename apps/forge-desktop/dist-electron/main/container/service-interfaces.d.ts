@@ -214,14 +214,27 @@ export interface IEditorContext {
     } | null;
 }
 export interface IStructuredContext {
-    readonly timestamp: string;
-    readonly editor: IEditorContext;
-    readonly workspace: {
-        readonly rootPath: string | null;
-        readonly recentCommands: string[];
-        readonly activeThemeId: string;
-        readonly gitBranchPlaceholder: string;
+    readonly timestamp?: string;
+    readonly editor?: IEditorContext | {
+        readonly activeFilePath?: string | null;
+        readonly activeFile?: string | null;
+        readonly openFilePaths?: string[];
+        readonly currentSelection?: any;
+        readonly cursorPosition?: any;
     };
+    readonly workspace?: {
+        readonly rootPath?: string | null;
+        readonly root?: string | null;
+        readonly recentCommands?: string[];
+        readonly activeThemeId?: string;
+        readonly gitBranchPlaceholder?: string;
+    };
+    readonly state?: import('../ai/session/structured-conversation-state').IStructuredConversationState;
+    readonly session?: import('../ai/session/session-context-manager').ISessionServices;
+    readonly entities?: import('../ai/memory/store/entity-store').IEntityStore;
+    readonly previousExecutionResults?: readonly import('../ai/execution/execution-types').IExecutionResult[];
+    readonly knowledgeFacts?: readonly any[];
+    readonly conversationHistory?: readonly any[];
 }
 import type { ContextSnapshot, ContextEngineGatherOptions } from '../ai/context/context-engine';
 import type { IndexedSymbol, IndexedFile } from '../ai/context/repository-indexer';

@@ -1,9 +1,9 @@
 import type { ITool, IWorkspaceService, ITerminalService, IDesktopEventBus, IRepositoryProvider, IWorkspaceApplicationService, ITerminalApplicationService } from '../../container/service-interfaces';
+import type { ExecutionResult } from '../contracts/execution-envelope';
+import type { IFileContentResult, IWorkspaceFileListResult, ITerminalCommandResult } from '../contracts/workspace-contracts';
 export declare class ReadFileTool implements ITool<{
     filePath: string;
-}, {
-    content: string;
-}> {
+}, ExecutionResult<IFileContentResult>> {
     private readonly workspaceService;
     readonly id = "read_file";
     readonly description = "Reads the content of a file from the workspace.";
@@ -28,9 +28,7 @@ export declare class ReadFileTool implements ITool<{
     constructor(workspaceService: IWorkspaceService);
     execute(input: {
         filePath: string;
-    }): Promise<{
-        content: string;
-    }>;
+    }): Promise<ExecutionResult<IFileContentResult>>;
     private resolvePath;
 }
 export declare class WriteFileTool implements ITool<{
@@ -110,20 +108,55 @@ export declare class ListDirectoryTool implements ITool<{
         items: string[];
     }>;
 }
+export declare class ListWorkspaceFilesTool implements ITool<{
+    query?: string;
+    limit?: number;
+}, ExecutionResult<IWorkspaceFileListResult>> {
+    private readonly workspaceService;
+    private readonly repositoryProvider;
+    readonly id = "list_workspace_files";
+    readonly description = "Lists all file paths present in the active workspace without text filtering.";
+    readonly inputSchema: {
+        type: string;
+        properties: {
+            query: {
+                type: string;
+                description: string;
+            };
+            limit: {
+                type: string;
+                description: string;
+            };
+        };
+    };
+    readonly outputSchema: {
+        type: string;
+        properties: {
+            files: {
+                type: string;
+                items: {
+                    type: string;
+                };
+            };
+            total: {
+                type: string;
+            };
+        };
+    };
+    constructor(workspaceService: IWorkspaceService, repositoryProvider: IRepositoryProvider);
+    execute(input: {
+        query?: string;
+        limit?: number;
+        offset?: number;
+    }): Promise<ExecutionResult<IWorkspaceFileListResult>>;
+}
 export declare class SearchWorkspaceTool implements ITool<{
     query?: string;
     mode?: string;
     fileType?: string;
     text?: string;
     symbol?: string;
-}, {
-    results: Array<{
-        filePath: string;
-        line?: number;
-        text: string;
-    }>;
-    stats?: any;
-}> {
+}, ExecutionResult<any>> {
     private readonly workspaceService;
     private readonly repositoryProvider;
     readonly id = "search_workspace";
@@ -182,20 +215,13 @@ export declare class SearchWorkspaceTool implements ITool<{
         fileType?: string;
         text?: string;
         symbol?: string;
-    }): Promise<{
-        results: Array<{
-            filePath: string;
-            line?: number;
-            text: string;
-        }>;
-        stats?: any;
-    }>;
+        limit?: number;
+        offset?: number;
+    }): Promise<ExecutionResult<any>>;
 }
 export declare class RunTerminalCommandTool implements ITool<{
     command: string;
-}, {
-    pid: number;
-}> {
+}, ExecutionResult<ITerminalCommandResult>> {
     private readonly terminalService;
     private readonly terminalAppService?;
     private readonly workspaceService?;
@@ -222,9 +248,7 @@ export declare class RunTerminalCommandTool implements ITool<{
     constructor(terminalService: ITerminalService, terminalAppService?: ITerminalApplicationService | undefined, workspaceService?: IWorkspaceService | undefined);
     execute(input: {
         command: string;
-    }): Promise<{
-        pid: number;
-    }>;
+    }): Promise<ExecutionResult<ITerminalCommandResult>>;
 }
 export declare class OpenFileTool implements ITool<{
     filePath: string;
@@ -258,6 +282,7 @@ export declare class OpenFileTool implements ITool<{
         filePath: string;
     }): Promise<{
         success: boolean;
+        error?: string;
     }>;
 }
 export declare class ToggleTerminalTool implements ITool<{}, {

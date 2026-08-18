@@ -3,27 +3,18 @@
  *
  * ResponseContextBuilder — assembles a structured, provider-agnostic
  * ResponseRequest from a completed PipelineContext.
- *
- * Responsibilities:
- *  - Read PipelineContext fields safely (every field is optional)
- *  - Produce a flat, typed ResponseRequest with no internal engineering types
- *  - Make NO decisions about prompt format or runtime selection
- *  - Remain stateless and dependency-free (no DI required)
- *
- * The ResponseGenerationEngine is responsible for turning ResponseRequest
- * into a runtime-specific prompt string.
  */
 import type { PipelineContext } from '../pipeline/pipeline-context';
-import type { ResponseRequest } from './response-types';
+import type { ResponseRequest, FileContentFact } from './response-types';
+import { FactInterpreter } from './fact-interpreter';
+import { ResultNormalizer } from '../pipeline/result-normalizer';
 export declare class ResponseContextBuilder {
     private readonly factInterpreter;
+    private readonly normalizer;
+    constructor(factInterpreter?: FactInterpreter, normalizer?: ResultNormalizer);
     /**
-     * Assembles a ResponseRequest from the pipeline's final context and
-     * the original user prompt.
-     *
-     * All fields degrade gracefully when context data is absent (e.g., when
-     * a stage was skipped).
+     * Assembles a ResponseRequest from the pipeline's final context and user prompt.
      */
-    build(context: PipelineContext, userPrompt: string): ResponseRequest;
+    build(context: PipelineContext, userPrompt: string, activeFileFact?: FileContentFact | null): ResponseRequest;
     private _buildContextSummary;
 }

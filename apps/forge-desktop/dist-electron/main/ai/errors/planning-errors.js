@@ -27,6 +27,13 @@ function isNonRetriable(err) {
     if (err instanceof ForgeError) {
         return exports.NON_RETRIABLE_CODES.has(err.code);
     }
+    if (err && typeof err === 'object') {
+        const code = err.code;
+        const msg = String(err.message || '');
+        if (code === 'ENOENT' || msg.includes('ENOENT') || msg.includes('no such file or directory') || msg.includes('does not exist')) {
+            return true;
+        }
+    }
     return false;
 }
 // ── Base Error ─────────────────────────────────────────────────────────────────

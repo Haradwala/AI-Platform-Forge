@@ -16,6 +16,7 @@ import { useLayoutStore } from '../stores/layout-store';
 import { useWorkspaceStore } from '../stores/workspace-store';
 import { useThemeStore } from '../stores/theme-store';
 import { useCommandPaletteStore } from '../stores/command-palette-store';
+import { useEditorStore } from '../stores/editor-store';
 import { WorkspaceClient } from '../services/workspace-client';
 import { PlatformDiagnosticsService } from '../services/platform-diagnostics-service';
 
@@ -53,6 +54,23 @@ const coreCommandsPlugin: IPlugin = {
           if (folderPath) {
             await useWorkspaceStore.getState().openWorkspace(folderPath);
           }
+        }
+      },
+    });
+
+    context.commands.register({
+      id: 'forge.workspace.openFile',
+      title: 'Open File in Editor',
+      category: 'Workspace',
+      handler: async (filePath: string, content?: string) => {
+        if (!filePath) return;
+        try {
+          console.log('[AI OPEN] editor opening', filePath);
+          const fileContent = content ?? await WorkspaceClient.readFile(filePath);
+          const name = filePath.split(/[/\\]/).pop() || filePath;
+          useEditorStore.getState().openFile(filePath, name, fileContent);
+        } catch (err) {
+          console.error('[CommandService] Failed to open file in editor:', err);
         }
       },
     });

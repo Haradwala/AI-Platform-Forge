@@ -74,5 +74,11 @@ export class DesktopEventBus {
     window.forge.on('startup:stage-changed', (data: any) => {
       this.emit('startup:stage-changed', data);
     });
+
+    // Bridge AI execution commands from Main process to Renderer subscribers
+    window.forge.on('ai:execute-command', (data: any) => {
+      console.log('[AI OPEN] received', data);
+      this.emit('ai:execute-command', data);
+    });
   }
 }

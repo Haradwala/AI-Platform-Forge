@@ -78,7 +78,7 @@ describe('AI Core Foundation', () => {
 
       expect(registry.getById('read_file')).toBe(tool);
       const res = await registry.execute('read_file', { filePath: 'foo.txt' });
-      expect(res.content).toBe('file-content');
+      expect(res.payload?.content || res.content).toBe('file-content');
       expect(mockWs.readFile).toHaveBeenCalledWith(path.join('/root', 'foo.txt'));
     });
   });

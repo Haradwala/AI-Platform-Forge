@@ -57,6 +57,7 @@ const repository_rules_1 = require("../../ai/verification/checkers/repository-ru
 const security_scanner_1 = require("../../ai/verification/checkers/security-scanner");
 const performance_checker_1 = require("../../ai/verification/checkers/performance-checker");
 const ai_orchestrator_1 = require("../../ai/orchestrator/ai-orchestrator");
+const execution_router_1 = require("../../ai/execution/execution-router");
 const recovery_orchestrator_1 = require("../../ai/recovery/recovery-orchestrator");
 const failure_analyzer_1 = require("../../ai/recovery/failure-analyzer");
 const recovery_policy_engine_1 = require("../../ai/recovery/recovery-policy-engine");
@@ -129,6 +130,7 @@ function registerBuiltInTools(registry, resolver) {
     registry.register(new built_in_tools_1.ReadFileTool(dynamicWorkspaceService));
     registry.register(new built_in_tools_1.WriteFileTool(dynamicWorkspaceService, workspaceAppService));
     registry.register(new built_in_tools_1.ListDirectoryTool(dynamicWorkspaceService, dynamicRepositoryProvider));
+    registry.register(new built_in_tools_1.ListWorkspaceFilesTool(dynamicWorkspaceService, dynamicRepositoryProvider));
     registry.register(new built_in_tools_1.SearchWorkspaceTool(dynamicWorkspaceService, dynamicRepositoryProvider));
     registry.register(new built_in_tools_1.RunTerminalCommandTool(stubTerminalService, terminalAppService, dynamicWorkspaceService));
     registry.register(new built_in_tools_1.OpenFileTool(stubEventBus, dynamicWorkspaceService));
@@ -510,11 +512,25 @@ class AiFoundationModule {
             factory: (resolver) => new response_generation_engine_1.ResponseGenerationEngine(resolver.resolve(tokens_1.T.IRuntimeManager), resolver.tryResolve(tokens_1.T.IDesktopEventBus) ?? undefined, resolver.resolve(tokens_1.T.IDesktopLogger))
         });
         container.registerSingleton({
+            token: tokens_1.T.IExecutionRouter,
+            name: 'IExecutionRouter',
+            lifetime: 'singleton',
+            dependencies: [],
+            factory: () => {
+                const router = new execution_router_1.ExecutionRouter();
+                router.registerSource(new execution_router_1.MemoryExecutionSource());
+                router.registerSource(new execution_router_1.WorkspaceExecutionSource());
+                return router;
+            }
+        });
+        container.registerSingleton({
             token: tokens_1.T.IAiOrchestrator,
             name: 'IAiOrchestrator',
             lifetime: 'singleton',
             dependencies: [],
-            factory: (resolver) => new ai_orchestrator_1.AiOrchestrator(resolver.tryResolve(tokens_1.T.IContextEngine) ?? undefined, resolver.tryResolve(tokens_1.T.IMemoryRegistry) ?? undefined, resolver.tryResolve(tokens_1.T.IRepositoryProvider) ?? undefined, resolver.tryResolve(tokens_1.T.IIntentDetector) ?? undefined, resolver.tryResolve(tokens_1.T.IGoalExtractor) ?? undefined, resolver.tryResolve(tokens_1.T.IGoalTaskPlanner) ?? undefined, resolver.tryResolve(tokens_1.T.IExecutionPlanner) ?? undefined, resolver.tryResolve(tokens_1.T.IPlanner) ?? undefined, resolver.tryResolve(tokens_1.T.IReasoningEngine) ?? undefined, resolver.tryResolve(tokens_1.T.IExecutionEngine) ?? undefined, resolver.tryResolve(tokens_1.T.IVerificationEngine) ?? undefined, resolver.tryResolve(tokens_1.T.IRecoveryOrchestrator) ?? undefined, resolver.tryResolve(tokens_1.T.IReflectionEngine) ?? undefined, resolver.tryResolve(tokens_1.T.IOutcomeManager) ?? undefined, resolver.tryResolve(tokens_1.T.ILearningEngine) ?? undefined, resolver.tryResolve(tokens_1.T.IPipelineExecutor) ?? new pipeline_executor_1.PipelineExecutor(resolver.tryResolve(tokens_1.T.IDesktopEventBus) ?? undefined), resolver.tryResolve(tokens_1.T.IPipelineRecorder) ?? new pipeline_recorder_1.PipelineRecorder(resolver.tryResolve(tokens_1.T.IWorkspaceService) ?? undefined, resolver.tryResolve(tokens_1.T.IDesktopLogger) ?? undefined), resolver.tryResolve(tokens_1.T.IWorkspaceService) ?? undefined, resolver.tryResolve(tokens_1.T.IDesktopLogger) ?? undefined, resolver.resolve(tokens_1.T.IResponseGenerationEngine))
+            factory: (resolver) => new ai_orchestrator_1.AiOrchestrator(resolver.tryResolve(tokens_1.T.IContextEngine) ?? undefined, resolver.tryResolve(tokens_1.T.IMemoryRegistry) ?? undefined, resolver.tryResolve(tokens_1.T.IRepositoryProvider) ?? undefined, resolver.tryResolve(tokens_1.T.IIntentDetector) ?? undefined, resolver.tryResolve(tokens_1.T.IGoalExtractor) ?? undefined, resolver.tryResolve(tokens_1.T.IGoalTaskPlanner) ?? undefined, resolver.tryResolve(tokens_1.T.IExecutionPlanner) ?? undefined, resolver.tryResolve(tokens_1.T.IPlanner) ?? undefined, resolver.tryResolve(tokens_1.T.IReasoningEngine) ?? undefined, resolver.tryResolve(tokens_1.T.IExecutionEngine) ?? undefined, resolver.tryResolve(tokens_1.T.IVerificationEngine) ?? undefined, resolver.tryResolve(tokens_1.T.IRecoveryOrchestrator) ?? undefined, resolver.tryResolve(tokens_1.T.IReflectionEngine) ?? undefined, resolver.tryResolve(tokens_1.T.IOutcomeManager) ?? undefined, resolver.tryResolve(tokens_1.T.ILearningEngine) ?? undefined, resolver.tryResolve(tokens_1.T.IPipelineExecutor) ?? new pipeline_executor_1.PipelineExecutor(resolver.tryResolve(tokens_1.T.IDesktopEventBus) ?? undefined), resolver.tryResolve(tokens_1.T.IPipelineRecorder) ?? new pipeline_recorder_1.PipelineRecorder(resolver.tryResolve(tokens_1.T.IWorkspaceService) ?? undefined, resolver.tryResolve(tokens_1.T.IDesktopLogger) ?? undefined), resolver.tryResolve(tokens_1.T.IWorkspaceService) ?? undefined, resolver.tryResolve(tokens_1.T.IDesktopLogger) ?? undefined, resolver.resolve(tokens_1.T.IResponseGenerationEngine), resolver.resolve(tokens_1.T.ISessionContextManager), resolver.resolve(tokens_1.T.IContextResolutionService), resolver.resolve(tokens_1.T.IExecutionRouter), 
+            // Sprint 87: previously disconnected — now wired through DI
+            resolver.tryResolve(tokens_1.T.ISemanticContextRetriever) ?? undefined, resolver.tryResolve(tokens_1.T.IEngineeringIntelligenceEngine) ?? undefined)
         });
         container.registerSingleton({
             token: tokens_1.T.IRecoveryOrchestrator,

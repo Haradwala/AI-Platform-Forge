@@ -1,17 +1,25 @@
+/**
+ * TerminalPanel.tsx — Stateful Terminal Panel with Lifecycle Management
+ */
+
 import React, { useEffect, useRef } from 'react';
 import { Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
+import { PanelLifecycleRegistry } from '../../components/dock/PanelLifecycleRegistry';
 
 export const TerminalPanel: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const sessionIdRef = useRef<string>(`session-${Date.now()}-${Math.floor(Math.random() * 1000000)}`);
+  const isSpawnedRef = useRef<boolean>(false);
+  const isSuspendedRef = useRef<boolean>(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
-
-    const sessionId = `session-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+    const sessionId = sessionIdRef.current;
 
     // ── 1. Initialize xterm.js ───────────────────────────────────────────────
     const term = new Terminal({
@@ -52,61 +60,68 @@ export const TerminalPanel: React.FC = () => {
     fitAddonRef.current = fitAddon;
     terminalRef.current = term;
     term.open(containerRef.current);
-    // Defer fit until the browser has fully committed layout (two frames).
-    // Single rAF is sometimes still too early in Electron when the terminal
-    // panel transitions from hidden to visible — the viewport dimensions are
-    // still 0 on the first frame. Double rAF ensures layout has settled.
-    requestAnimationFrame(() => {
+
+    // Perform initial double-rAF layout fit
+    const performFit = () => {
+      if (isSuspendedRef.current) return;
       requestAnimationFrame(() => {
-        const addon = fitAddonRef.current;
-        const termObj = terminalRef.current as any;
-        if (addon && termObj?.element && termObj?._core?._viewport) {
-          try { addon.fit(); } catch { /* disposed before frame */ }
-        }
+        requestAnimationFrame(() => {
+          const addon = fitAddonRef.current;
+          const termObj = terminalRef.current as any;
+          if (addon && termObj?.element && termObj?._core?._viewport && !isSuspendedRef.current) {
+            try {
+              addon.fit();
+              const { cols, rows } = terminalRef.current!;
+              if (typeof window !== 'undefined' && window.forge?.terminal && isSpawnedRef.current && cols > 0 && rows > 0) {
+                window.forge.terminal.resize(sessionId, cols, rows);
+              }
+            } catch {
+              /* term disposed before frame */
+            }
+          }
+        });
       });
-    });
+    };
+
+    performFit();
 
     // ── 2. Connect to Electron node-pty via forge.terminal bridge ────────────
-    let isSpawned = false;
     const cleanupFns: Array<() => void> = [];
     let spawnTimeout: any = null;
 
     if (typeof window !== 'undefined' && window.forge?.terminal) {
       const forgeTerminal = window.forge.terminal;
 
-      // Debounce spawning to prevent React StrictMode duplicate spawn/kill cycles
       spawnTimeout = setTimeout(() => {
-        isSpawned = true;
+        isSpawnedRef.current = true;
         forgeTerminal.create(sessionId).catch((err: unknown) => {
           term.writeln(`\r\n\x1b[1;31m[Terminal] Failed to create session: ${err}\x1b[0m\r\n`);
         });
 
-        // Forward user keystrokes → pty
         term.onData((data: string) => {
-          forgeTerminal.write(sessionId, data);
+          if (isSpawnedRef.current && !isSuspendedRef.current) {
+            forgeTerminal.write(sessionId, data);
+          }
         });
       }, 100);
 
-      // Receive pty output and write it to the xterm.js display
       const unsubData = forgeTerminal.onData(sessionId, (data: string) => {
         term.write(data);
       });
       cleanupFns.push(unsubData);
 
-      // Listen for pty process exit
       const unsubExit = forgeTerminal.onExit(sessionId, ({ exitCode }) => {
         term.writeln(`\r\n\x1b[1;33m[Terminal] Session exited (code ${exitCode}).\x1b[0m`);
       });
       cleanupFns.push(unsubExit);
     } else {
-      // ── Fallback: local web mock (non-Electron / dev browser context) ─────
+      // Local web mock fallback
       term.writeln('\x1b[1;32mForge Terminal\x1b[0m \x1b[90m(local mock — not running in Electron)\x1b[0m');
       term.write('\r\nPS C:\\forge> ');
       term.onData((data: string) => {
         if (data === '\r') {
           term.write('\r\nPS C:\\forge> ');
         } else if (data === '\x7f') {
-          // Backspace
           term.write('\b \b');
         } else {
           term.write(data);
@@ -114,48 +129,57 @@ export const TerminalPanel: React.FC = () => {
       });
     }
 
-    // ── 3. Handle resize with FitAddon + ResizeObserver ─────────────────────
-    const resizeObserver = new ResizeObserver(() => {
-      const container = containerRef.current;
-      const term = terminalRef.current;
-      if (!container || !term || !term.element) return;
+    // ── 3. ResizeObserver Setup & Teardown ─────────────────────────────────────
+    const setupResizeObserver = () => {
+      if (resizeObserverRef.current) return;
+      const observer = new ResizeObserver(() => {
+        const container = containerRef.current;
+        const term = terminalRef.current;
+        if (!container || !term || !term.element || isSuspendedRef.current) return;
 
-      // Visibility & Geometry guards: never call fit when element has height <= 10px (collapsed)
-      const { clientWidth, clientHeight } = container;
-      if (clientWidth <= 10 || clientHeight <= 10) return;
+        const { clientWidth, clientHeight } = container;
+        if (clientWidth <= 10 || clientHeight <= 10) return;
 
-      requestAnimationFrame(() => {
-        if (!containerRef.current || !terminalRef.current || !terminalRef.current.element) return;
-        try {
-          const addon = fitAddonRef.current;
-          const termObj = terminalRef.current as any;
-          if (addon && termObj?._core?._viewport) {
-            addon.fit();
-            const { cols, rows } = terminalRef.current;
-            if (typeof window !== 'undefined' && window.forge?.terminal && isSpawned && cols > 0 && rows > 0) {
-              window.forge.terminal.resize(sessionId, cols, rows);
-            }
-          }
-        } catch {
-          // Fit may throw if terminal or viewport is disposed
-        }
+        performFit();
       });
-    });
-    resizeObserver.observe(containerRef.current);
+      observer.observe(containerRef.current!);
+      resizeObserverRef.current = observer;
+    };
 
-    // ── Cleanup ──────────────────────────────────────────────────────────────
-    return () => {
-      if (spawnTimeout) {
-        clearTimeout(spawnTimeout);
+    const stopResizeObserver = () => {
+      if (resizeObserverRef.current) {
+        resizeObserverRef.current.disconnect();
+        resizeObserverRef.current = null;
       }
-      resizeObserver.disconnect();
-      cleanupFns.forEach((fn) => fn());
-      if (typeof window !== 'undefined' && window.forge?.terminal) {
-        if (isSpawned) {
+    };
+
+    setupResizeObserver();
+
+    // ── 4. Register Panel Lifecycle Callbacks ──────────────────────────────────
+    PanelLifecycleRegistry.register('terminal', {
+      suspend: () => {
+        isSuspendedRef.current = true;
+        stopResizeObserver();
+      },
+      resume: () => {
+        isSuspendedRef.current = false;
+        setupResizeObserver();
+        performFit();
+      },
+      dispose: () => {
+        if (spawnTimeout) clearTimeout(spawnTimeout);
+        stopResizeObserver();
+        cleanupFns.forEach((fn) => fn());
+        if (typeof window !== 'undefined' && window.forge?.terminal && isSpawnedRef.current) {
           window.forge.terminal.kill(sessionId);
         }
-      }
-      term.dispose();
+        term.dispose();
+      },
+    });
+
+    // ── Cleanup on complete unmount ───────────────────────────────────────────
+    return () => {
+      PanelLifecycleRegistry.dispose('terminal');
     };
   }, []);
 

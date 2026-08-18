@@ -37,6 +37,8 @@ export const T = {
 
   // Session
   ISessionManager:     Symbol('ISessionManager')     as ServiceToken,
+  ISessionContextManager: Symbol('ISessionContextManager') as ServiceToken,
+  IContextResolutionService: Symbol('IContextResolutionService') as ServiceToken,
 
   // Performance
   IPerformanceMonitor: Symbol('IPerformanceMonitor') as ServiceToken,
@@ -76,6 +78,7 @@ export const T = {
   CodexCLIRuntime:     Symbol('CodexCLIRuntime')     as ServiceToken, // Codex CLI Runtime
   AiderCLIRuntime:     Symbol('AiderCLIRuntime')     as ServiceToken, // Aider CLI Runtime
   GooseCLIRuntime:     Symbol('GooseCLIRuntime')     as ServiceToken, // Goose CLI Runtime
+  IExecutionRouter:    Symbol('IExecutionRouter')    as ServiceToken, // Execution Router
   MockProvider:        Symbol('MockProvider')        as ServiceToken, // Mock AI Provider
   OllamaProvider:      Symbol('OllamaProvider')      as ServiceToken, // Ollama Local LLM Runtime
   OpenAIRuntime:       Symbol('OpenAIRuntime')       as ServiceToken, // OpenAI Cloud Runtime
@@ -115,6 +118,10 @@ export const T = {
   ISecurityScanner: Symbol('ISecurityScanner') as ServiceToken,
   IPerformanceChecker: Symbol('IPerformanceChecker') as ServiceToken,
   IAiOrchestrator: Symbol('IAiOrchestrator') as ServiceToken,
+  // Sprint 87: wired into DI so orchestrator receives them via injection
+  IWorkspaceSymbolIndexer: Symbol('IWorkspaceSymbolIndexer') as ServiceToken,
+  IDependencyGraphEngine: Symbol('IDependencyGraphEngine') as ServiceToken,
+  ISemanticContextRetriever: Symbol('ISemanticContextRetriever') as ServiceToken,
   IRecoveryOrchestrator: Symbol('IRecoveryOrchestrator') as ServiceToken,
   IReflectionEngine: Symbol('IReflectionEngine') as ServiceToken,
   IOutcomeManager: Symbol('IOutcomeManager') as ServiceToken,

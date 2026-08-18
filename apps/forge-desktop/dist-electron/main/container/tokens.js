@@ -30,6 +30,8 @@ exports.T = {
     ITerminalService: Symbol('ITerminalService'),
     // Session
     ISessionManager: Symbol('ISessionManager'),
+    ISessionContextManager: Symbol('ISessionContextManager'),
+    IContextResolutionService: Symbol('IContextResolutionService'),
     // Performance
     IPerformanceMonitor: Symbol('IPerformanceMonitor'),
     // Startup
@@ -66,6 +68,7 @@ exports.T = {
     CodexCLIRuntime: Symbol('CodexCLIRuntime'), // Codex CLI Runtime
     AiderCLIRuntime: Symbol('AiderCLIRuntime'), // Aider CLI Runtime
     GooseCLIRuntime: Symbol('GooseCLIRuntime'), // Goose CLI Runtime
+    IExecutionRouter: Symbol('IExecutionRouter'), // Execution Router
     MockProvider: Symbol('MockProvider'), // Mock AI Provider
     OllamaProvider: Symbol('OllamaProvider'), // Ollama Local LLM Runtime
     OpenAIRuntime: Symbol('OpenAIRuntime'), // OpenAI Cloud Runtime
@@ -105,6 +108,10 @@ exports.T = {
     ISecurityScanner: Symbol('ISecurityScanner'),
     IPerformanceChecker: Symbol('IPerformanceChecker'),
     IAiOrchestrator: Symbol('IAiOrchestrator'),
+    // Sprint 87: wired into DI so orchestrator receives them via injection
+    IWorkspaceSymbolIndexer: Symbol('IWorkspaceSymbolIndexer'),
+    IDependencyGraphEngine: Symbol('IDependencyGraphEngine'),
+    ISemanticContextRetriever: Symbol('ISemanticContextRetriever'),
     IRecoveryOrchestrator: Symbol('IRecoveryOrchestrator'),
     IReflectionEngine: Symbol('IReflectionEngine'),
     IOutcomeManager: Symbol('IOutcomeManager'),

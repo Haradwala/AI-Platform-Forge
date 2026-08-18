@@ -64,32 +64,18 @@ export const useAiStore = create<IAiStore>((set, get) => ({
 
       if (typeof window === 'undefined' || !window.forge) return;
 
-      // Unified event stream listener
+      // Unified event stream listener — only handle TOKEN events (useAgentBridge handles pipeline timeline)
       const unsubEvent = window.forge.on('ai:event', (evt: any) => {
         const data = evt as { type: string; payload: any };
+        if (data.type !== 'TOKEN') return;
+
         set((state) => {
-          // Find the last assistant message
           const lastAssistant = [...state.messages].reverse().find((m) => m.role === 'assistant');
           if (!lastAssistant) return {};
 
-          let contentUpdate = '';
-          if (data.type === 'PIPELINE_STARTED') {
-            contentUpdate = `[Pipeline Started] Request ID: ${data.payload.id}\n`;
-          } else if (data.type === 'STAGE_STARTED') {
-            contentUpdate = `➜ Phase: ${data.payload.phase} | Stage: ${data.payload.stageName}...\n`;
-          } else if (data.type === 'STAGE_COMPLETED') {
-            contentUpdate = `✔ Done: ${data.payload.stageName} (${data.payload.status}, took ${data.payload.durationMs}ms)\n`;
-          } else if (data.type === 'PIPELINE_COMPLETED') {
-            contentUpdate = `\n[Pipeline Completed] Status: ${data.payload.status}`;
-          } else if (data.type === 'TOKEN') {
-            contentUpdate = data.payload.token;
-          } else if (data.type === 'ERROR') {
-            contentUpdate = `\n❌ Error: ${data.payload.error}`;
-          }
-
           const nextMsgs = state.messages.map((m) => {
             if (m.id === lastAssistant.id) {
-              return { ...m, content: m.content + contentUpdate };
+              return { ...m, content: m.content + (data.payload?.token ?? '') };
             }
             return m;
           });
@@ -184,7 +170,7 @@ export const useAiStore = create<IAiStore>((set, get) => ({
     }));
 
     try {
-      const response = (await window.forge.invoke('ai:request', { id: reqId, prompt })) as {
+      const response = (await window.forge.invoke('ai:request', { id: reqId, prompt, options: { editorState } })) as {
         success: boolean;
         result: { response: string; metadata: Record<string, any> };
         finalContext: any;

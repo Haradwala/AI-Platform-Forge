@@ -7,9 +7,26 @@ const console_sink_1 = require("../logging/console-sink");
 // ─── EventBus stub (replaced by full DesktopEventBus in Epic 10) ─────────────
 const events_1 = require("events");
 class StubDesktopEventBus {
+    windowRegistryResolver;
     emitter = new events_1.EventEmitter();
+    constructor(windowRegistryResolver) {
+        this.windowRegistryResolver = windowRegistryResolver;
+    }
     emit(topic, payload) {
         this.emitter.emit(topic, payload);
+        try {
+            const registry = this.windowRegistryResolver?.();
+            if (registry) {
+                for (const entry of registry.getAll()) {
+                    if (entry.window && !entry.window.isDestroyed()) {
+                        entry.window.webContents.send(topic, payload);
+                    }
+                }
+            }
+        }
+        catch {
+            // Non-fatal if window registry is unmounted or window is destroyed
+        }
     }
     on(topic, listener) {
         this.emitter.on(topic, listener);
@@ -57,7 +74,7 @@ class CoreModule {
             name: 'IDesktopEventBus',
             lifetime: 'singleton',
             dependencies: [],
-            factory: () => new StubDesktopEventBus(),
+            factory: (resolver) => new StubDesktopEventBus(() => resolver.tryResolve(tokens_1.T.IWindowRegistry) ?? null),
         });
     }
 }

@@ -150,11 +150,22 @@ class PlanningStage {
         }
         const taskGraph = this.taskPlanner.buildTaskGraph(context.goalExtracted);
         const executionStrategy = this.strategyPlanner.determineStrategy(taskGraph);
-        const generatedPlan = await this.corePlanner.generatePlan(context.prompt, context.contextCollected || {
-            timestamp: '',
+        const baseContext = context.contextCollected || {
+            timestamp: new Date().toISOString(),
             editor: { activeFilePath: null, openFilePaths: [], currentSelection: null, cursorPosition: null },
-            workspace: { rootPath: null, recentCommands: [], activeThemeId: '', gitBranchPlaceholder: '' },
-        });
+            workspace: { rootPath: context.workspaceRoot || null, recentCommands: [], activeThemeId: '', gitBranchPlaceholder: '' },
+        };
+        const sessionServices = context.session || baseContext?.session;
+        const enrichedContext = {
+            ...baseContext,
+            state: context.state || baseContext?.state || (sessionServices?.getState ? sessionServices.getState() : undefined),
+            session: sessionServices,
+            entities: context.entities || baseContext?.entities,
+            previousExecutionResults: context.executionResults || baseContext?.previousExecutionResults || [],
+            knowledgeFacts: context.knowledgeFacts || baseContext?.knowledgeFacts || [],
+            conversationHistory: context.conversationHistory || baseContext?.conversationHistory || [],
+        };
+        const generatedPlan = await this.corePlanner.generatePlan(context.prompt, enrichedContext);
         // Validate that every task in the generated plan specifies a valid, registered tool ID
         for (const task of generatedPlan.tasks) {
             if (!task.toolCall || !task.toolCall.toolId) {

@@ -1,7 +1,9 @@
 /**
- * WorkbenchDock.tsx — Modern Draggable Bottom Workspace / Dock Host
+ * WorkbenchDock.tsx — Presentation Shell for Bottom Workspace / Dock Host
  *
- * Implements Apple Maps / Arc / Linear / Raycast-inspired Bottom Workspace & Floating Dock System.
+ * Adheres strictly to the Open/Closed Principle.
+ * Contains ZERO panel-specific checks or hardcoded tab names.
+ * Delegates panel DOM instantiation and lifecycle management to PanelHost.
  */
 
 import React, { useEffect } from 'react';
@@ -9,8 +11,9 @@ import { useDockStore } from './DockStore';
 import { DockHandle } from './DockHandle';
 import { DockTabs } from './DockTabs';
 import { DockRegistry } from './DockRegistry';
+import { PanelHost } from './PanelHost';
 
-// Built-in panels
+// Built-in panels registration
 import { TerminalPanel } from '../../panels/terminal/TerminalPanel';
 import { HealthScoreGauge } from '../health/HealthScoreGauge';
 
@@ -78,9 +81,6 @@ DockRegistry.register({
 export const WorkbenchDock: React.FC = () => {
   const { targetHeightPx, actualHeightPx, activeTabId, snapPoint, isDragging, dockMode, setSnapPoint, restoreLastExpanded } = useDockStore();
 
-  const activePanel = DockRegistry.getById(activeTabId) || DockRegistry.getAll()[0];
-  const ActiveComponent = activePanel.component;
-
   // Keyboard shortcut handlers: Ctrl+` (toggle height) and Esc (collapse)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -121,6 +121,8 @@ export const WorkbenchDock: React.FC = () => {
         height: `${actualHeightPx}px`,
       };
 
+  const isExpanded = actualHeightPx > 80;
+
   return React.createElement(
     'div',
     {
@@ -133,13 +135,13 @@ export const WorkbenchDock: React.FC = () => {
     React.createElement(DockHandle),
     // Tabs Navigation
     React.createElement(DockTabs),
-    // Panel Content Viewport
-    actualHeightPx > 80
-      ? React.createElement(
-          'div',
-          { className: 'flex-1 min-h-0 w-full overflow-hidden relative bg-[#09090d]' },
-          React.createElement(ActiveComponent)
-        )
-      : null
+    // Generic Panel Host
+    React.createElement(
+      'div',
+      { className: 'flex-1 min-h-0 w-full overflow-hidden relative bg-[#09090d]' },
+      React.createElement(PanelHost, { activeTabId, isExpanded })
+    )
   );
 };
+
+export default WorkbenchDock;

@@ -13,7 +13,16 @@
 import type { PipelineContext } from '../pipeline/pipeline-context';
 import type { IExecutionResult } from '../execution/execution-types';
 
-// ─── Grounded Context & Fact Structures ────────────────────────────────────────
+// ─── Prompt Section Contract ───────────────────────────────────────────────────
+
+export interface PromptSection {
+  readonly title: string;
+  readonly category: 'grounding' | 'context' | 'execution' | 'verification' | 'system';
+  readonly priority: number;
+  readonly content: string;
+}
+
+// ─── Grounded Context & Knowledge Fact Structures ──────────────────────────────
 
 export interface SearchMatch {
   readonly filePath: string;
@@ -34,6 +43,12 @@ export interface DirectoryListingFact {
   readonly items: readonly string[];
 }
 
+export interface RepositoryFileListFact {
+  readonly kind: 'file_list';
+  readonly files: readonly string[];
+  readonly total: number;
+}
+
 export interface FileContentFact {
   readonly kind: 'file_content';
   readonly path: string;
@@ -42,23 +57,41 @@ export interface FileContentFact {
 
 export interface WorkspaceStatisticsFact {
   readonly kind: 'workspace_statistics';
-  readonly fileCount?: number;
+  readonly fileCount: number;
+  readonly symbolsCount?: number;
+  readonly circularDependenciesCount?: number;
   readonly languages?: readonly string[];
-  readonly rootPath?: string;
+  readonly projects?: readonly string[];
+}
+
+export interface GitDiffFact {
+  readonly kind: 'git_diff';
+  readonly diff: string;
+}
+
+export interface ErrorTraceFact {
+  readonly kind: 'error_trace';
+  readonly error: string;
 }
 
 export type RepositoryFact =
   | WorkspaceSearchFact
   | DirectoryListingFact
   | FileContentFact
-  | WorkspaceStatisticsFact;
+  | WorkspaceStatisticsFact
+  | RepositoryFileListFact
+  | GitDiffFact
+  | ErrorTraceFact;
 
 export interface TerminalFact {
+  readonly kind: 'terminal_output';
   readonly command: string;
   readonly stdout: string;
   readonly stderr?: string;
   readonly exitCode?: number;
 }
+
+export type KnowledgeFact = RepositoryFact | TerminalFact;
 
 /**
  * GroundedContext — strictly typed collection of raw execution results
@@ -72,6 +105,7 @@ export interface GroundedContext {
   readonly executionResults: readonly IExecutionResult[];
   readonly repositoryFacts: readonly RepositoryFact[];
   readonly terminalFacts: readonly TerminalFact[];
+  readonly knowledgeFacts?: readonly KnowledgeFact[];
 }
 
 // ─── Structured Request ───────────────────────────────────────────────────────
@@ -113,6 +147,9 @@ export interface ResponseRequest {
 
   /** Strictly typed facts produced by tool execution. */
   readonly groundedContext?: GroundedContext;
+
+  /** Optional pre-formatted execution summary for fast responses. */
+  readonly executionSummary?: string;
 }
 
 // ─── Metadata ─────────────────────────────────────────────────────────────────
@@ -122,14 +159,15 @@ export interface ResponseRequest {
  * Fields are optional so early implementations don't have to provide all of them.
  */
 export interface AiExecutionMetadata {
-  readonly runtime: string;
-  readonly model: string;
-  readonly durationMs: number;
+  readonly runtime?: string;
+  readonly model?: string;
+  readonly durationMs?: number;
   readonly provider?: string;
   readonly tokensIn?: number;
   readonly tokensOut?: number;
   readonly fallbackUsed?: boolean;
   readonly streaming?: boolean;
+  readonly timing?: Record<string, any>;
 }
 
 // ─── Result ───────────────────────────────────────────────────────────────────

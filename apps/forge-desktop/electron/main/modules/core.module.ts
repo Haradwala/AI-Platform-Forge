@@ -8,10 +8,26 @@ import { ConsoleSink } from '../logging/console-sink';
 
 import { EventEmitter } from 'events';
 
+import type { IWindowRegistry } from '../window-registry';
+
 class StubDesktopEventBus implements IDesktopEventBus {
   private emitter = new EventEmitter();
+  constructor(private readonly windowRegistryResolver?: () => IWindowRegistry | null) {}
+
   emit(topic: string, payload: unknown) {
     this.emitter.emit(topic, payload);
+    try {
+      const registry = this.windowRegistryResolver?.();
+      if (registry) {
+        for (const entry of registry.getAll()) {
+          if (entry.window && !entry.window.isDestroyed()) {
+            entry.window.webContents.send(topic, payload);
+          }
+        }
+      }
+    } catch {
+      // Non-fatal if window registry is unmounted or window is destroyed
+    }
   }
   on(topic: string, listener: (payload: unknown) => void) {
     this.emitter.on(topic, listener);
@@ -64,7 +80,7 @@ export class CoreModule implements IContainerModule {
       name:         'IDesktopEventBus',
       lifetime:     'singleton',
       dependencies: [],
-      factory:      () => new StubDesktopEventBus(),
+      factory:      (resolver) => new StubDesktopEventBus(() => resolver.tryResolve<IWindowRegistry>(T.IWindowRegistry) ?? null),
     });
   }
 }

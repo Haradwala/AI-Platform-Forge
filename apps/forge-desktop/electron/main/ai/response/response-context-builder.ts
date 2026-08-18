@@ -3,33 +3,27 @@
  *
  * ResponseContextBuilder — assembles a structured, provider-agnostic
  * ResponseRequest from a completed PipelineContext.
- *
- * Responsibilities:
- *  - Read PipelineContext fields safely (every field is optional)
- *  - Produce a flat, typed ResponseRequest with no internal engineering types
- *  - Make NO decisions about prompt format or runtime selection
- *  - Remain stateless and dependency-free (no DI required)
- *
- * The ResponseGenerationEngine is responsible for turning ResponseRequest
- * into a runtime-specific prompt string.
  */
 
 import type { PipelineContext } from '../pipeline/pipeline-context';
-import type { ResponseRequest, GroundedContext } from './response-types';
+import type { ResponseRequest, GroundedContext, FileContentFact } from './response-types';
 import { FactInterpreter } from './fact-interpreter';
+import { ResultNormalizer } from '../pipeline/result-normalizer';
 
 export class ResponseContextBuilder {
-  private readonly factInterpreter = new FactInterpreter();
+  constructor(
+    private readonly factInterpreter: FactInterpreter = new FactInterpreter(),
+    private readonly normalizer: ResultNormalizer = new ResultNormalizer()
+  ) {}
 
   /**
-   * Assembles a ResponseRequest from the pipeline's final context and
-   * the original user prompt.
-   *
-   * All fields degrade gracefully when context data is absent (e.g., when
-   * a stage was skipped).
+   * Assembles a ResponseRequest from the pipeline's final context and user prompt.
    */
-  build(context: PipelineContext, userPrompt: string): ResponseRequest {
-    // Use the real IPlan.goal field (not goalDescription)
+  build(
+    context: PipelineContext,
+    userPrompt: string,
+    activeFileFact?: FileContentFact | null
+  ): ResponseRequest {
     const goal =
       (context.generatedPlan as any)?.goal ||
       (context.generatedPlan as any)?.goalDescription ||
@@ -45,13 +39,33 @@ export class ResponseContextBuilder {
     const recommendations: readonly string[] =
       context.reflectionReport?.recommendations ?? [];
 
-    // Assemble a brief context summary from available collection data.
     const contextSummary = this._buildContextSummary(context);
 
-    // Interpret execution results into structured GroundedContext facts
+    // Pass results through ResultNormalizer before handing to FactInterpreter
     let groundedContext: GroundedContext | undefined;
     if (context.executionResults && context.executionResults.length > 0) {
-      groundedContext = this.factInterpreter.interpret(context.executionResults);
+      const normalizedResults = context.executionResults.map((exec) => {
+        if (!exec.result) return exec;
+        const normalized = this.normalizer.normalize(exec.result);
+        return { ...exec, result: normalized };
+      });
+      groundedContext = this.factInterpreter.interpret(normalizedResults);
+    }
+
+    if (activeFileFact) {
+      const existingFacts = groundedContext?.knowledgeFacts ?? [];
+      const hasSamePath = existingFacts.some(
+        (f) => f.kind === 'file_content' && (f as any).path === activeFileFact.path
+      );
+      if (!hasSamePath) {
+        const knowledgeFacts = [activeFileFact, ...existingFacts];
+        groundedContext = {
+          executionResults: groundedContext?.executionResults ?? [],
+          repositoryFacts: groundedContext?.repositoryFacts ?? [activeFileFact],
+          terminalFacts: groundedContext?.terminalFacts ?? [],
+          knowledgeFacts,
+        };
+      }
     }
 
     return {

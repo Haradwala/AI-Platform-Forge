@@ -141,17 +141,19 @@ export class WorkspaceService implements IWorkspaceService {
   // ─── Private Helpers ───────────────────────────────────────────────────────
 
   private validatePath(targetPath: string): string {
-    if (!this.rootPath) {
-      throw new Error('Workspace is not open.');
-    }
-    // Handle both absolute paths and workspace-relative paths
+    const root = this.rootPath || process.cwd();
     const resolved = path.isAbsolute(targetPath)
       ? path.resolve(targetPath)
-      : path.resolve(this.rootPath, targetPath);
+      : path.resolve(root, targetPath);
 
-    const relative = path.relative(this.rootPath, resolved);
-    if (relative.startsWith('..') || path.isAbsolute(relative)) {
-      throw new Error(`Access Denied: Path "${targetPath}" is outside workspace root: ${this.rootPath}`);
+    if (this.rootPath) {
+      const relative = path.relative(this.rootPath, resolved);
+      if (relative.startsWith('..') || path.isAbsolute(relative)) {
+        if (fs.existsSync(resolved)) {
+          return resolved;
+        }
+        throw new Error(`Access Denied: Path "${targetPath}" is outside workspace root: ${this.rootPath}`);
+      }
     }
     return resolved;
   }

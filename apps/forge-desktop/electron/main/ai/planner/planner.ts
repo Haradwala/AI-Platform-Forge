@@ -20,9 +20,33 @@ export class TaskPlanner implements IPlanner {
       }
     });
 
-    const intent = this.goalPlanner.classifyIntent(goal);
+    const intent = this.goalPlanner.classifyIntent(goal, context);
 
     switch (intent.type) {
+      case 'terminal_command': {
+        const rawCmd = (intent.rawCommand || goal).toLowerCase();
+        const cmd = rawCmd.includes('git diff') ? 'git diff' :
+                    rawCmd.includes('git status') ? 'git status' :
+                    rawCmd.includes('git log') ? 'git log' :
+                    rawCmd.includes('cargo test') ? 'cargo test' :
+                    rawCmd.includes('pytest') ? 'pytest' :
+                    rawCmd.includes('go test') ? 'go test' :
+                    rawCmd.includes('bun test') ? 'bun test' :
+                    rawCmd.includes('yarn test') ? 'yarn test' :
+                    rawCmd.includes('npm test') ? 'npm test' : 'pnpm test';
+        tasks.push({
+          id: 'task_2',
+          title: `Run terminal command: ${cmd}`,
+          description: `Execute terminal command "${cmd}"`,
+          status: 'pending',
+          dependencies: ['task_1'],
+          toolCall: {
+            toolId: 'run_terminal_command',
+            input: { command: cmd }
+          }
+        });
+        break;
+      }
       case 'workspace_statistics': {
         tasks.push({
           id: 'task_2',
@@ -35,6 +59,24 @@ export class TaskPlanner implements IPlanner {
             input: {
               query: goal,
               mode: 'workspace_statistics'
+            }
+          }
+        });
+        break;
+      }
+      case 'list_workspace_files': {
+        tasks.push({
+          id: 'task_2',
+          title: 'List workspace files',
+          description: 'Enumerate all files present in the active workspace',
+          status: 'pending',
+          dependencies: ['task_1'],
+          toolCall: {
+            toolId: 'list_workspace_files',
+            input: {
+              query: goal,
+              limit: (intent as any).limit,
+              offset: (intent as any).offset
             }
           }
         });
@@ -70,6 +112,22 @@ export class TaskPlanner implements IPlanner {
             }
           }
         });
+
+        if ((intent as any).open) {
+          tasks.push({
+            id: 'task_3',
+            title: `Open file tab: ${intent.filePath}`,
+            description: `Open ${intent.filePath} in Monaco editor viewport`,
+            status: 'pending',
+            dependencies: ['task_2'],
+            toolCall: {
+              toolId: 'open_file',
+              input: {
+                filePath: intent.filePath
+              }
+            }
+          });
+        }
         break;
       }
       case 'file_search': {
@@ -84,7 +142,9 @@ export class TaskPlanner implements IPlanner {
             input: {
               query: goal,
               mode: 'file_search',
-              fileType: intent.fileType
+              fileType: intent.fileType,
+              limit: (intent as any).limit,
+              open: (intent as any).open
             }
           }
         });

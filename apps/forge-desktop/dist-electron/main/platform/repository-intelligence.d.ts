@@ -30,6 +30,8 @@ export declare class RepositoryIntelligenceEngine implements IRuntimeService, IR
     scanWorkspace(): Promise<void>;
     query(request: RepositoryQuery): Promise<RepositoryResult>;
     subscribe(listener: RepositoryEventListener): IDisposable;
+    onFileAdded(filePath: string): Promise<void>;
+    onFileDeleted(filePath: string): Promise<void>;
     onFileChanged(filePath: string): Promise<void>;
 }
 export type { IRepositoryProvider };

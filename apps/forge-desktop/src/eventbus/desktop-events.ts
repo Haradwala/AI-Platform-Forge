@@ -20,12 +20,15 @@ export interface DesktopEventMap {
   // Focus events
   'focus:changed': { oldFocus: string | null; newFocus: string | null };
 
-  // Dock events
+  // Dock & Panel Lifecycle events
   'dock:opened': { position: 'bottom' | 'left' | 'right'; activePanelId: string };
   'dock:closed': void;
   'dock:moved': { position: 'bottom' | 'left' | 'right' };
   'dock:resized': { size: number; position: 'bottom' | 'left' | 'right' };
   'dock:panel-activated': { panelId: string };
+  'panel:resumed': { panelId: string; timestamp: string };
+  'panel:suspended': { panelId: string; timestamp: string };
+  'panel:disposed': { panelId: string; timestamp: string };
 
   // AI events
   'ai:execute-command': { commandId: string; args?: any[] };

@@ -21,8 +21,8 @@ interface RunState {
   readonly isReviewModeEnabled: boolean;
 
   // ── Mutations ──────────────────────────────────────────────────────────────
-  /** Create a new run, make it active, return its id */
-  createRun(title: string, runtimeId: string, modelId: string): string;
+  /** Create a new run (or return existing if requestId exists), make it active, return its id */
+  createRun(title: string, runtimeId: string, modelId: string, requestId?: string): string;
   /** Update top-level run fields (e.g. status, title, endTime) */
   updateRun(id: string, patch: Partial<Pick<AgentRun, 'title' | 'status' | 'endTime' | 'reviewStatus'>>): void;
   /** Change the actively displayed run */
@@ -50,10 +50,19 @@ export const useRunStore = create<RunState>((set, get) => ({
   activeRunId: null,
   isReviewModeEnabled: true,
 
-  createRun(title, runtimeId, modelId) {
-    const id = `run_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  createRun(title, runtimeId, modelId, requestId) {
+    const existing = requestId
+      ? get().runs.find((r) => r.requestId === requestId || r.id === requestId)
+      : null;
+    if (existing) {
+      set({ activeRunId: existing.id });
+      return existing.id;
+    }
+
+    const id = requestId || `run_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const run: AgentRun = {
       id,
+      requestId: requestId || id,
       title,
       status: 'running',
       runtimeId,
@@ -72,7 +81,7 @@ export const useRunStore = create<RunState>((set, get) => ({
   updateRun(id, patch) {
     set((state) => ({
       runs: state.runs.map((r) =>
-        r.id === id ? { ...r, ...patch } : r
+        r.id === id || r.requestId === id ? { ...r, ...patch } : r
       ),
     }));
   },
@@ -88,18 +97,23 @@ export const useRunStore = create<RunState>((set, get) => ({
   setReviewStatus(runId, status) {
     set((state) => ({
       runs: state.runs.map((r) =>
-        r.id === runId ? { ...r, reviewStatus: status } : r
+        r.id === runId || r.requestId === runId ? { ...r, reviewStatus: status } : r
       ),
     }));
   },
 
   appendStage(runId, stage) {
     set((state) => ({
-      runs: state.runs.map((r) =>
-        r.id === runId
-          ? { ...r, timeline: [...r.timeline, stage] }
-          : r
-      ),
+      runs: state.runs.map((r) => {
+        if (r.id !== runId && r.requestId !== runId) return r;
+        const exists = r.timeline.some(
+          (s) =>
+            s.id === stage.id ||
+            (s.name === stage.name && s.phase === stage.phase)
+        );
+        if (exists) return r;
+        return { ...r, timeline: [...r.timeline, stage] };
+      }),
     }));
   },
 

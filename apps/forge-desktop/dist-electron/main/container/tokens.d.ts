@@ -20,6 +20,8 @@ export declare const T: {
     readonly IThemeEngine: ServiceToken;
     readonly ITerminalService: ServiceToken;
     readonly ISessionManager: ServiceToken;
+    readonly ISessionContextManager: ServiceToken;
+    readonly IContextResolutionService: ServiceToken;
     readonly IPerformanceMonitor: ServiceToken;
     readonly IStartupManager: ServiceToken;
     readonly IProviderRegistry: ServiceToken;
@@ -53,6 +55,7 @@ export declare const T: {
     readonly CodexCLIRuntime: ServiceToken;
     readonly AiderCLIRuntime: ServiceToken;
     readonly GooseCLIRuntime: ServiceToken;
+    readonly IExecutionRouter: ServiceToken;
     readonly MockProvider: ServiceToken;
     readonly OllamaProvider: ServiceToken;
     readonly OpenAIRuntime: ServiceToken;
@@ -92,6 +95,9 @@ export declare const T: {
     readonly ISecurityScanner: ServiceToken;
     readonly IPerformanceChecker: ServiceToken;
     readonly IAiOrchestrator: ServiceToken;
+    readonly IWorkspaceSymbolIndexer: ServiceToken;
+    readonly IDependencyGraphEngine: ServiceToken;
+    readonly ISemanticContextRetriever: ServiceToken;
     readonly IRecoveryOrchestrator: ServiceToken;
     readonly IReflectionEngine: ServiceToken;
     readonly IOutcomeManager: ServiceToken;
